@@ -1,9 +1,11 @@
 package ravenworks.magpie.engine.rabbitmq;
 
 import com.rabbitmq.stream.Environment;
+import com.rabbitmq.stream.StreamCreator;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import ravenworks.magpie.engine.model.StreamDefinition;
+import ravenworks.magpie.engine.stream.StreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 
 import java.util.List;
@@ -29,9 +31,14 @@ public class RabbitStreamProvider implements StreamProvider {
     public void create(@NonNull StreamDefinition definition) {
         log.info("Creating stream {}", definition);
         for (int i = 0; i < definition.partitions(); i++) {
-            var partitionName = String.format("magpie-stream.%s-%d", definition.name(), i);
+            var partitionName = RabbitUtils.streamQueueName(definition.name(), i);
             this.createStream(partitionName, definition.properties());
         }
+    }
+
+    @Override
+    public StreamProducer producer(@NonNull StreamDefinition definition) {
+        return new RabbitStreamProducer(this.environment, definition);
     }
 
     private void createStream(@NonNull String name,
@@ -39,7 +46,8 @@ public class RabbitStreamProvider implements StreamProvider {
         var creator = this.environment.streamCreator()
                 .stream(name);
         arguments.forEach((k, v) -> creator.argument(k, String.valueOf(v)));
-        creator.create();
+        creator.leaderLocator(StreamCreator.LeaderLocator.BALANCED)
+                .create();
     }
 
     @Override

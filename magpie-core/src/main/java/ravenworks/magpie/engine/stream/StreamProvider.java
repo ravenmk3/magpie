@@ -10,4 +10,6 @@ public interface StreamProvider extends AutoCloseable {
 
     void create(StreamDefinition definition);
 
+    StreamProducer producer(StreamDefinition definition);
+
 }
