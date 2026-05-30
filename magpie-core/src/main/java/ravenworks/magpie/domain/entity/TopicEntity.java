@@ -1,11 +1,6 @@
 package ravenworks.magpie.domain.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import ravenworks.magpie.domain.converter.JsonMapConverter;

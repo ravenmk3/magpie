@@ -1,6 +1,6 @@
 package ravenworks.magpie.engine.stream;
 
-import java.util.Map;
+import ravenworks.magpie.engine.model.StreamDefinition;
 
 
 /**
@@ -8,8 +8,6 @@ import java.util.Map;
  */
 public interface StreamProvider extends AutoCloseable {
 
-    void create(String name,
-                int partitions,
-                Map<String, Object> properties);
+    void create(StreamDefinition definition);
 
 }

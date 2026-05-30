@@ -3,6 +3,7 @@ package ravenworks.magpie.engine.rabbitmq;
 import com.rabbitmq.stream.Environment;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import ravenworks.magpie.engine.model.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProvider;
 
 import java.util.List;
@@ -25,13 +26,11 @@ public class RabbitStreamProvider implements StreamProvider {
     }
 
     @Override
-    public void create(@NonNull String name,
-                       int partitions,
-                       @NonNull Map<String, Object> properties) {
-        log.info("Creating stream {} with {} partitions, {}", name, partitions, properties);
-        for (int i = 0; i < partitions; i++) {
-            var partitionName = String.format("magpie-stream.%s-%d", name, i);
-            this.createStream(partitionName, properties);
+    public void create(@NonNull StreamDefinition definition) {
+        log.info("Creating stream {}", definition);
+        for (int i = 0; i < definition.partitions(); i++) {
+            var partitionName = String.format("magpie-stream.%s-%d", definition.name(), i);
+            this.createStream(partitionName, definition.properties());
         }
     }
 

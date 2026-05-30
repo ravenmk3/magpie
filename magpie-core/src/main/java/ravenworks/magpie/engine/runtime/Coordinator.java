@@ -4,8 +4,9 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.lock.LeaderLock;
-import ravenworks.magpie.engine.stream.StreamProvider;
+import ravenworks.magpie.engine.model.StreamDefinition;
 import ravenworks.magpie.engine.store.MetaStore;
+import ravenworks.magpie.engine.stream.StreamProvider;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -17,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 public class Coordinator {
 
     private static final Object WAKEUP_SIGNAL = new Object();
-    private static final int DEFAULT_IDLE_TIMEOUT_MS = 10_000;
+    private static final int DEFAULT_IDLE_TIMEOUT_MS = 5_000;
 
     private final EventLoop eventLoop;
     private final LeaderLock leaderLock;
@@ -101,9 +102,10 @@ public class Coordinator {
     protected void onLeaderAcquired() {
         var topics = this.metaStore.getTopics();
         for (var topic : topics) {
-            this.streamProvider.create(topic.name(), topic.partitions(), topic.properties());
+            this.streamProvider.create(new StreamDefinition(
+                    topic.name(), topic.partitions(), topic.properties()));
         }
-        log.info("Leader stream initialization complete, {} topics", topics.size());
+        log.info("Streaming initialization complete, {} topics", topics.size());
     }
 
     protected void onLeaderRenewed() {

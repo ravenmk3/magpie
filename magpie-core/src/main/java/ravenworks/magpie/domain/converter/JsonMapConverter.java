@@ -12,6 +12,7 @@ import java.util.Map;
 public class JsonMapConverter implements AttributeConverter<Map<String, Object>, String> {
 
     private static final TypeReference<Map<String, Object>> TYPE_REF = new TypeReference<>() {
+
     };
 
     @Override

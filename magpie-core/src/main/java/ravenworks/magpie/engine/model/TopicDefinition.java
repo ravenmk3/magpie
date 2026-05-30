@@ -8,6 +8,6 @@ import java.util.Map;
  */
 public record TopicDefinition(String name,
                               int partitions,
-                               Map<String, Object> properties) {
+                              Map<String, Object> properties) {
 
 }
