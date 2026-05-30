@@ -11,3 +11,22 @@ CREATE TABLE IF NOT EXISTS `magpie_leader_lock`
     ENGINE = InnoDB
     CHARSET = utf8mb4
     COMMENT 'Leader 锁';
+
+
+CREATE TABLE IF NOT EXISTS `magpie_topic`
+(
+    `id`         CHAR(32)     NOT NULL COMMENT 'ID',
+    `name`       VARCHAR(128) NOT NULL DEFAULT '' COMMENT '名称',
+    `title`      VARCHAR(128) NOT NULL DEFAULT '' COMMENT '展示名称',
+    `partitions` INT          NOT NULL DEFAULT 0 COMMENT '分区数',
+    `properties` JSON         NOT NULL COMMENT '属性',
+    `version`    INT          NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+    `created_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_name` (`name`)
+)
+    ENGINE = InnoDB
+    CHARSET = utf8mb4
+    COMMENT '消息主题';

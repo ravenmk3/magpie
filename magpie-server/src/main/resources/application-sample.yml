@@ -32,3 +32,9 @@ spring:
         order_inserts: true                    # 排序 INSERT 以优化批处理
         order_updates: true                    # 排序 UPDATE 以优化批处理
     open-in-view: false                        # 避免长连接持有 EntityManager
+
+
+magpie:
+  rabbitmq-stream:
+    uris:
+      - rabbitmq-stream://guest:guest@localhost:5552/%2f

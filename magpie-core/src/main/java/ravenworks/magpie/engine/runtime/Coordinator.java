@@ -15,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 public class Coordinator {
 
     private static final Object WAKEUP_SIGNAL = new Object();
-    private static final int DEFAULT_IDLE_TIMEOUT_MS = 5_000;
+    private static final int DEFAULT_IDLE_TIMEOUT_MS = 10_000;
 
     private final EventLoop eventLoop;
     private final LeaderLock leaderLock;
@@ -43,16 +43,24 @@ public class Coordinator {
 
     private void dispatch(Object event) {
         if (event == WAKEUP_SIGNAL) {
-            this.coordinate();
+            this.onWakeup();
             return;
         }
         switch (event) {
-            case EventLoop.Idle _ -> this.coordinate();
+            case EventLoop.Idle _ -> this.onIdle();
             case EventLoop.Started _ -> this.onStarted();
             case EventLoop.PreShutdown _ -> this.onPreShutdown();
             case EventLoop.Terminated _ -> this.onTerminated();
             default -> log.warn("Unhandled event: {}", event);
         }
+    }
+
+    private void onWakeup() {
+        this.coordinate();
+    }
+
+    private void onIdle() {
+        this.coordinate();
     }
 
     private void onStarted() {
