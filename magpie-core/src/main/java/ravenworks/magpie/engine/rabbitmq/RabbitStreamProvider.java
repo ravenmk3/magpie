@@ -27,8 +27,8 @@ public class RabbitStreamProvider implements StreamProvider {
     @Override
     public void create(@NonNull String name,
                        int partitions,
-                       @NonNull Map<String, String> properties) {
-        log.info("Creating stream {} with {} partitions", name, partitions);
+                       @NonNull Map<String, Object> properties) {
+        log.info("Creating stream {} with {} partitions, {}", name, partitions, properties);
         for (int i = 0; i < partitions; i++) {
             var partitionName = String.format("magpie-stream.%s-%d", name, i);
             this.createStream(partitionName, properties);
@@ -36,10 +36,10 @@ public class RabbitStreamProvider implements StreamProvider {
     }
 
     private void createStream(@NonNull String name,
-                              @NonNull Map<String, String> arguments) {
+                              @NonNull Map<String, Object> arguments) {
         var creator = this.environment.streamCreator()
                 .stream(name);
-        arguments.forEach(creator::argument);
+        arguments.forEach((k, v) -> creator.argument(k, String.valueOf(v)));
         creator.create();
     }
 

@@ -4,6 +4,8 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.lock.LeaderLock;
+import ravenworks.magpie.engine.stream.StreamProvider;
+import ravenworks.magpie.engine.store.MetaStore;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -19,13 +21,22 @@ public class Coordinator {
 
     private final EventLoop eventLoop;
     private final LeaderLock leaderLock;
+    private final MetaStore metaStore;
+    private final StreamProvider streamProvider;
 
-    public Coordinator(@NonNull LeaderLock leaderLock) {
-        this(leaderLock, DEFAULT_IDLE_TIMEOUT_MS);
+    public Coordinator(@NonNull LeaderLock leaderLock,
+                       @NonNull MetaStore metaStore,
+                       @NonNull StreamProvider streamProvider) {
+        this(leaderLock, metaStore, streamProvider, DEFAULT_IDLE_TIMEOUT_MS);
     }
 
-    public Coordinator(@NonNull LeaderLock leaderLock, int idleTimeoutMs) {
+    public Coordinator(@NonNull LeaderLock leaderLock,
+                       @NonNull MetaStore metaStore,
+                       @NonNull StreamProvider streamProvider,
+                       int idleTimeoutMs) {
         this.leaderLock = leaderLock;
+        this.metaStore = metaStore;
+        this.streamProvider = streamProvider;
         this.eventLoop = new EventLoop("Coordinator", idleTimeoutMs, this::dispatch);
     }
 
@@ -88,6 +99,11 @@ public class Coordinator {
     }
 
     protected void onLeaderAcquired() {
+        var topics = this.metaStore.getTopics();
+        for (var topic : topics) {
+            this.streamProvider.create(topic.name(), topic.partitions(), topic.properties());
+        }
+        log.info("Leader stream initialization complete, {} topics", topics.size());
     }
 
     protected void onLeaderRenewed() {
