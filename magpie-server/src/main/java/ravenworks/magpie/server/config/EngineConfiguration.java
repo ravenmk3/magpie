@@ -5,16 +5,30 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ravenworks.magpie.domain.repository.LeaderLockRepository;
+import ravenworks.magpie.domain.repository.SinkRepository;
+import ravenworks.magpie.domain.repository.SourceRepository;
 import ravenworks.magpie.domain.repository.TopicRepository;
 import ravenworks.magpie.engine.lock.LeaderLock;
 import ravenworks.magpie.engine.lock.LeaderLockImpl;
 import ravenworks.magpie.engine.runtime.Coordinator;
+import ravenworks.magpie.engine.sink.SinkFactory;
+import ravenworks.magpie.engine.sink.SinkFactoryImpl;
+import ravenworks.magpie.engine.sink.SinkProvider;
+import ravenworks.magpie.engine.sink.SinkRegistry;
+import ravenworks.magpie.engine.source.SourceFactory;
+import ravenworks.magpie.engine.source.SourceFactoryImpl;
+import ravenworks.magpie.engine.source.SourceProvider;
+import ravenworks.magpie.engine.source.SourceRegistry;
 import ravenworks.magpie.engine.store.MetaStore;
 import ravenworks.magpie.engine.store.MetaStoreImpl;
+import ravenworks.magpie.engine.store.SinkRegistryImpl;
+import ravenworks.magpie.engine.store.SourceRegistryImpl;
 import ravenworks.magpie.engine.store.StreamRegistryImpl;
 import ravenworks.magpie.engine.stream.RoutingStreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
+
+import java.util.List;
 
 
 @Configuration
@@ -36,15 +50,40 @@ public class EngineConfiguration {
     }
 
     @Bean
+    public static SourceRegistry sourceRegistry(@NonNull SourceRepository sourceRepository) {
+        return new SourceRegistryImpl(sourceRepository);
+    }
+
+    @Bean
+    public static SourceFactory sourceFactory(@NonNull List<SourceProvider> providers) {
+        return new SourceFactoryImpl(providers);
+    }
+
+    @Bean
+    public static SinkRegistry sinkRegistry(@NonNull SinkRepository sinkRepository) {
+        return new SinkRegistryImpl(sinkRepository);
+    }
+
+    @Bean
+    public static SinkFactory sinkFactory(@NonNull List<SinkProvider> providers) {
+        return new SinkFactoryImpl(providers);
+    }
+
+    @Bean
     public static Coordinator coordinator(@NonNull LeaderLock leaderLock,
                                           @NonNull StreamRegistry streamRegistry,
-                                          @NonNull StreamProvider streamProvider) {
-        return new Coordinator(leaderLock, streamRegistry, streamProvider);
+                                          @NonNull StreamProvider streamProvider,
+                                          @NonNull SourceRegistry sourceRegistry,
+                                          @NonNull SourceFactory sourceFactory,
+                                          @NonNull SinkRegistry sinkRegistry,
+                                          @NonNull SinkFactory sinkFactory) {
+        return new Coordinator(leaderLock, streamRegistry, streamProvider,
+                sourceRegistry, sourceFactory, sinkRegistry, sinkFactory);
     }
 
     @Bean
     public static RoutingStreamProducer routingStreamProducer(@NonNull StreamProvider streamProvider,
-                                                               @NonNull StreamRegistry streamRegistry) {
+                                                              @NonNull StreamRegistry streamRegistry) {
         return new RoutingStreamProducer(streamProvider, streamRegistry);
     }
 
