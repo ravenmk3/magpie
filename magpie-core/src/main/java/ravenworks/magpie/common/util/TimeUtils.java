@@ -22,4 +22,9 @@ public class TimeUtils {
         return zdt.format(RFC_3339);
     }
 
+    public static LocalDateTime parseRfc3339(@NonNull String text) {
+        ZonedDateTime zdt = ZonedDateTime.parse(text, RFC_3339);
+        return zdt.toLocalDateTime();
+    }
+
 }

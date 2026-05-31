@@ -4,10 +4,12 @@ import com.rabbitmq.stream.Environment;
 import com.rabbitmq.stream.StreamCreator;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +41,15 @@ public class RabbitStreamProvider implements StreamProvider {
     @Override
     public StreamProducer producer(@NonNull StreamDefinition definition) {
         return new RabbitStreamProducer(this.environment, definition);
+    }
+
+    @Override
+    public List<StreamConsumer> consumer(@NonNull StreamDefinition definition, String name) {
+        List<StreamConsumer> consumers = new ArrayList<>();
+        for (int i = 0; i < definition.partitions(); i++) {
+            consumers.add(new RabbitStreamConsumer(this.environment, definition, i, name));
+        }
+        return consumers;
     }
 
     private void createStream(@NonNull String name,

@@ -65,10 +65,10 @@ public class RabbitStreamProducer implements StreamProducer {
                 .messageId(record.getId())
                 .messageBuilder()
                 .applicationProperties()
-                .entry("partition-key", record.getPartitionKey())
-                .entry("tenant-id", record.getTenantId())
-                .entry("type", record.getType())
-                .entry("time", TimeUtils.formatRfc3339(record.getTime()));
+                .entry("x-partition-key", record.getPartitionKey())
+                .entry("x-tenant-id", record.getTenantId())
+                .entry("x-type", record.getType())
+                .entry("x-time", TimeUtils.formatRfc3339(record.getTime()));
         if (record.getHeaders() != null) {
             record.getHeaders().forEach(appProps::entry);
         }

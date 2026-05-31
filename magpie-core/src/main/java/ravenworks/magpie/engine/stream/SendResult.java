@@ -11,8 +11,8 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class SendResult {
 
-    boolean succeeded;
-    String error;
-    MessageRecord message;
+    private boolean succeeded;
+    private String error;
+    private MessageRecord message;
 
 }

@@ -69,3 +69,18 @@ CREATE TABLE IF NOT EXISTS `magpie_event_sink`
     ENGINE = InnoDB
     CHARSET = utf8mb4
     COMMENT '事件接收';
+
+
+CREATE TABLE IF NOT EXISTS `magpie_event_sink_offset`
+(
+    `id`         VARCHAR(128) NOT NULL COMMENT 'ID',
+    `offset`     BIGINT       NOT NULL DEFAULT 0 COMMENT '消息偏移量',
+    `version`    INT          NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+    `created_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`)
+)
+    ENGINE = InnoDB
+    CHARSET = utf8mb4
+    COMMENT '消息偏移量';
