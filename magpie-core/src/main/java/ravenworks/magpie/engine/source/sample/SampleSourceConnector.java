@@ -10,6 +10,7 @@ import ravenworks.magpie.engine.stream.StreamProducer;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -70,6 +71,8 @@ public class SampleSourceConnector implements SourceConnector {
         for (int i = 0; i < this.batchSize; i++) {
             var msg = new MessageRecord()
                     .setId(Uuids.uuid7Hex())
+                    .setType("sample")
+                    .setTime(LocalDateTime.now())
                     .setTenantId("sample")
                     .setTopic(this.topic)
                     .setPartitionKey(Uuids.uuid7Hex())

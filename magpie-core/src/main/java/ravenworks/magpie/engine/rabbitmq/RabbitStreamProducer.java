@@ -6,6 +6,7 @@ import com.rabbitmq.stream.Producer;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.util.PartitionUtils;
+import ravenworks.magpie.common.util.TimeUtils;
 import ravenworks.magpie.engine.stream.MessageRecord;
 import ravenworks.magpie.engine.stream.SendResult;
 import ravenworks.magpie.engine.stream.StreamDefinition;
@@ -65,7 +66,9 @@ public class RabbitStreamProducer implements StreamProducer {
                 .messageBuilder()
                 .applicationProperties()
                 .entry("partition-key", record.getPartitionKey())
-                .entry("tenant-id", record.getTenantId());
+                .entry("tenant-id", record.getTenantId())
+                .entry("type", record.getType())
+                .entry("time", TimeUtils.formatRfc3339(record.getTime()));
         if (record.getHeaders() != null) {
             record.getHeaders().forEach(appProps::entry);
         }
