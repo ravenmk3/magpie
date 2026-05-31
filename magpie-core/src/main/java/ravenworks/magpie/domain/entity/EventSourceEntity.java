@@ -13,8 +13,8 @@ import java.util.Map;
 @Getter
 @Setter
 @Entity
-@Table(name = "magpie_source")
-public class SourceEntity implements Serializable {
+@Table(name = "magpie_event_source")
+public class EventSourceEntity implements Serializable {
 
     @Id
     @Column(name = "id", nullable = false, length = 32)

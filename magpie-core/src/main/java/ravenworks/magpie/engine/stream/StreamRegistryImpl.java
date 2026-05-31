@@ -1,10 +1,8 @@
-package ravenworks.magpie.engine.store;
+package ravenworks.magpie.engine.stream;
 
 import lombok.NonNull;
 import ravenworks.magpie.domain.entity.TopicEntity;
 import ravenworks.magpie.domain.repository.TopicRepository;
-import ravenworks.magpie.engine.stream.StreamDefinition;
-import ravenworks.magpie.engine.stream.StreamRegistry;
 
 import java.util.List;
 

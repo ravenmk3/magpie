@@ -1,10 +1,8 @@
-package ravenworks.magpie.engine.store;
+package ravenworks.magpie.engine.sink;
 
 import lombok.NonNull;
-import ravenworks.magpie.domain.entity.SinkEntity;
-import ravenworks.magpie.domain.repository.SinkRepository;
-import ravenworks.magpie.engine.sink.SinkDefinition;
-import ravenworks.magpie.engine.sink.SinkRegistry;
+import ravenworks.magpie.domain.entity.EventSinkEntity;
+import ravenworks.magpie.domain.repository.EventSinkRepository;
 
 import java.util.List;
 
@@ -14,9 +12,9 @@ import java.util.List;
  */
 public class SinkRegistryImpl implements SinkRegistry {
 
-    private final SinkRepository sinkRepository;
+    private final EventSinkRepository sinkRepository;
 
-    public SinkRegistryImpl(@NonNull SinkRepository sinkRepository) {
+    public SinkRegistryImpl(@NonNull EventSinkRepository sinkRepository) {
         this.sinkRepository = sinkRepository;
     }
 
@@ -28,10 +26,11 @@ public class SinkRegistryImpl implements SinkRegistry {
                 .toList();
     }
 
-    private SinkDefinition toDefinition(SinkEntity entity) {
+    private SinkDefinition toDefinition(EventSinkEntity entity) {
         var def = new SinkDefinition();
         def.setName(entity.getName());
         def.setType(entity.getType());
+        def.setTopic(entity.getTopic());
         def.setProperties(entity.getProperties());
         return def;
     }

@@ -13,8 +13,8 @@ import java.util.Map;
 @Getter
 @Setter
 @Entity
-@Table(name = "magpie_sink")
-public class SinkEntity implements Serializable {
+@Table(name = "magpie_event_sink")
+public class EventSinkEntity implements Serializable {
 
     @Id
     @Column(name = "id", nullable = false, length = 32)
@@ -28,6 +28,9 @@ public class SinkEntity implements Serializable {
 
     @Column(name = "title", nullable = false, length = 128)
     private String title;
+
+    @Column(name = "topic", nullable = false, length = 128)
+    private String topic;
 
     @Convert(converter = JsonMapConverter.class)
     @Column(name = "properties", nullable = false)

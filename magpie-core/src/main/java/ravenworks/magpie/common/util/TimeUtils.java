@@ -1,5 +1,6 @@
 package ravenworks.magpie.common.util;
 
+import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 
 import java.time.LocalDateTime;
@@ -16,7 +17,7 @@ public class TimeUtils {
 
     private static final DateTimeFormatter RFC_3339 = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
 
-    public static String formatRfc3339(LocalDateTime time) {
+    public static String formatRfc3339(@NonNull LocalDateTime time) {
         ZonedDateTime zdt = time.atZone(ZoneId.systemDefault());
         return zdt.format(RFC_3339);
     }

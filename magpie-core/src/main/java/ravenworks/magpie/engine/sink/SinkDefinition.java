@@ -14,6 +14,7 @@ public class SinkDefinition implements Serializable {
 
     private String name;
     private String type;
+    private String topic;
     private Map<String, Object> properties;
 
 }

@@ -1,10 +1,8 @@
-package ravenworks.magpie.engine.store;
+package ravenworks.magpie.engine.source;
 
 import lombok.NonNull;
-import ravenworks.magpie.domain.entity.SourceEntity;
-import ravenworks.magpie.domain.repository.SourceRepository;
-import ravenworks.magpie.engine.source.SourceDefinition;
-import ravenworks.magpie.engine.source.SourceRegistry;
+import ravenworks.magpie.domain.entity.EventSourceEntity;
+import ravenworks.magpie.domain.repository.EventSourceRepository;
 
 import java.util.List;
 
@@ -14,9 +12,9 @@ import java.util.List;
  */
 public class SourceRegistryImpl implements SourceRegistry {
 
-    private final SourceRepository sourceRepository;
+    private final EventSourceRepository sourceRepository;
 
-    public SourceRegistryImpl(@NonNull SourceRepository sourceRepository) {
+    public SourceRegistryImpl(@NonNull EventSourceRepository sourceRepository) {
         this.sourceRepository = sourceRepository;
     }
 
@@ -28,7 +26,7 @@ public class SourceRegistryImpl implements SourceRegistry {
                 .toList();
     }
 
-    private SourceDefinition toDefinition(SourceEntity entity) {
+    private SourceDefinition toDefinition(EventSourceEntity entity) {
         var def = new SourceDefinition();
         def.setName(entity.getName());
         def.setType(entity.getType());

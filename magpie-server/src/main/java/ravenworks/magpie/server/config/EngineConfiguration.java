@@ -5,26 +5,20 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ravenworks.magpie.domain.repository.LeaderLockRepository;
-import ravenworks.magpie.domain.repository.SinkRepository;
-import ravenworks.magpie.domain.repository.SourceRepository;
+import ravenworks.magpie.domain.repository.EventSinkRepository;
+import ravenworks.magpie.domain.repository.EventSourceRepository;
 import ravenworks.magpie.domain.repository.TopicRepository;
 import ravenworks.magpie.engine.lock.LeaderLock;
 import ravenworks.magpie.engine.lock.LeaderLockImpl;
 import ravenworks.magpie.engine.runtime.Coordinator;
-import ravenworks.magpie.engine.sink.SinkFactory;
-import ravenworks.magpie.engine.sink.SinkFactoryImpl;
-import ravenworks.magpie.engine.sink.SinkProvider;
-import ravenworks.magpie.engine.sink.SinkRegistry;
-import ravenworks.magpie.engine.source.SourceFactory;
-import ravenworks.magpie.engine.source.SourceFactoryImpl;
-import ravenworks.magpie.engine.source.SourceProvider;
-import ravenworks.magpie.engine.source.SourceRegistry;
+import ravenworks.magpie.engine.source.*;
 import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
 import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
-import ravenworks.magpie.engine.store.*;
+import ravenworks.magpie.engine.sink.*;
 import ravenworks.magpie.engine.stream.RoutingStreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
+import ravenworks.magpie.engine.stream.StreamRegistryImpl;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,17 +33,12 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public static MetaStore metaStore(@NonNull TopicRepository topicRepository) {
-        return new MetaStoreImpl(topicRepository);
-    }
-
-    @Bean
     public static StreamRegistry streamRegistry(@NonNull TopicRepository topicRepository) {
         return new StreamRegistryImpl(topicRepository);
     }
 
     @Bean
-    public static SourceRegistry sourceRegistry(@NonNull SourceRepository sourceRepository) {
+    public static SourceRegistry sourceRegistry(@NonNull EventSourceRepository sourceRepository) {
         return new SourceRegistryImpl(sourceRepository);
     }
 
@@ -62,7 +51,7 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public static SinkRegistry sinkRegistry(@NonNull SinkRepository sinkRepository) {
+    public static SinkRegistry sinkRegistry(@NonNull EventSinkRepository sinkRepository) {
         return new SinkRegistryImpl(sinkRepository);
     }
 
