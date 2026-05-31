@@ -183,7 +183,7 @@ public class Coordinator {
     private void startSinkConnectors() {
         var sinks = this.sinkRegistry.getSinks();
         for (var definition : sinks) {
-            var connector = this.sinkFactory.create(definition);
+            var connector = this.sinkFactory.create(this.streamProvider, definition);
             this.sinkConnectors.put(definition.getName(), connector);
             connector.start();
         }

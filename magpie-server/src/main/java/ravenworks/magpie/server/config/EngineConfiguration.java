@@ -15,6 +15,7 @@ import ravenworks.magpie.engine.source.*;
 import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
 import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
 import ravenworks.magpie.engine.sink.*;
+import ravenworks.magpie.engine.sink.print.PrintSinkProvider;
 import ravenworks.magpie.engine.stream.RoutingStreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
@@ -56,8 +57,11 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public static SinkFactory sinkFactory(@NonNull List<SinkProvider> providers) {
-        return new SinkFactoryImpl(providers);
+    public static SinkFactory sinkFactory(@NonNull List<SinkProvider> providers,
+                                          @NonNull StreamRegistry streamRegistry) {
+        var merged = new ArrayList<>(providers);
+        merged.add(new PrintSinkProvider(streamRegistry));
+        return new SinkFactoryImpl(merged);
     }
 
     @Bean

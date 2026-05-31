@@ -1,6 +1,6 @@
 package ravenworks.magpie.engine.sink;
 
-import java.util.Map;
+import ravenworks.magpie.engine.stream.StreamProvider;
 
 
 /**
@@ -10,6 +10,6 @@ public interface SinkProvider {
 
     String type();
 
-    SinkConnector create(String name, Map<String, Object> properties);
+    SinkConnector create(StreamProvider provider, SinkDefinition definition);
 
 }

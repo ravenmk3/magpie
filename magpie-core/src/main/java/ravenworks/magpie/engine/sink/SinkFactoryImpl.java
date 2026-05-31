@@ -3,6 +3,7 @@ package ravenworks.magpie.engine.sink;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ravenworks.magpie.engine.stream.StreamProvider;
 
 import java.util.List;
 
@@ -18,10 +19,11 @@ public class SinkFactoryImpl implements SinkFactory {
     private final List<SinkProvider> providers;
 
     @Override
-    public SinkConnector create(@NonNull SinkDefinition definition) {
-        for (var provider : this.providers) {
-            if (provider.type().equals(definition.getType())) {
-                return provider.create(definition.getName(), definition.getProperties());
+    public SinkConnector create(@NonNull StreamProvider provider,
+                                @NonNull SinkDefinition definition) {
+        for (var p : this.providers) {
+            if (p.type().equals(definition.getType())) {
+                return p.create(provider, definition);
             }
         }
         throw new IllegalArgumentException("Unknown sink type: " + definition.getType());

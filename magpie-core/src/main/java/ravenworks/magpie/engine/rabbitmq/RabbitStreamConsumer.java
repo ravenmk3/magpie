@@ -70,6 +70,8 @@ public class RabbitStreamConsumer implements StreamConsumer {
                 .stream(streamName)
                 .name("magpie-" + this.name + "-" + this.partition)
                 .offset(offsetSpec)
+                .manualTrackingStrategy()
+                .builder()
                 .messageHandler((ctx, msg) -> {
                     ConsumerRecord record = convert(msg, ctx.offset());
                     handler.handle(record);

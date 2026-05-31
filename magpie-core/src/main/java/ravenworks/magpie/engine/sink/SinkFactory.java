@@ -1,11 +1,13 @@
 package ravenworks.magpie.engine.sink;
 
+import ravenworks.magpie.engine.stream.StreamProvider;
+
 
 /**
  * @author Raven
  */
 public interface SinkFactory {
 
-    SinkConnector create(SinkDefinition definition);
+    SinkConnector create(StreamProvider provider, SinkDefinition definition);
 
 }
