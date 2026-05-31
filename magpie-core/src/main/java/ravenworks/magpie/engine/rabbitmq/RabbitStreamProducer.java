@@ -1,6 +1,7 @@
 package ravenworks.magpie.engine.rabbitmq;
 
 import com.rabbitmq.stream.Environment;
+import com.rabbitmq.stream.Message;
 import com.rabbitmq.stream.Producer;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -37,12 +38,11 @@ public class RabbitStreamProducer implements StreamProducer {
 
     @Override
     public CompletableFuture<SendResult> send(@NonNull MessageRecord record) {
-        int partition = PartitionUtils.partition(record.getKey(), this.producers.size());
+        int partition = PartitionUtils.partition(record.getPartitionKey(), this.producers.size());
         Producer producer = this.producers.get(partition);
         CompletableFuture<SendResult> future = new CompletableFuture<>();
-        var builder = producer.messageBuilder()
-                .addData(record.getPayload());
-        producer.send(builder.build(), ctx -> {
+        var message = buildMessage(producer, record);
+        producer.send(message, ctx -> {
             if (ctx.isConfirmed()) {
                 future.complete(new SendResult()
                         .setSucceeded(true)
@@ -56,6 +56,21 @@ public class RabbitStreamProducer implements StreamProducer {
             }
         });
         return future;
+    }
+
+    private Message buildMessage(@NonNull Producer producer, @NonNull MessageRecord record) {
+        var appProps = producer.messageBuilder()
+                .properties()
+                .messageId(record.getId())
+                .messageBuilder()
+                .applicationProperties()
+                .entry("partition-key", record.getPartitionKey());
+        if (record.getHeaders() != null) {
+            record.getHeaders().forEach(appProps::entry);
+        }
+        return appProps.messageBuilder()
+                .addData(record.getPayload())
+                .build();
     }
 
     @Override

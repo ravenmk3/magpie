@@ -15,7 +15,7 @@ import java.util.Map;
 public class MessageRecord implements Serializable {
 
     private String id;
-    private String key;
+    private String partitionKey;
     private String topic;
     private Map<String, String> headers;
     private byte[] payload;
