@@ -10,6 +10,7 @@ import ravenworks.magpie.engine.sink.SinkRegistry;
 import ravenworks.magpie.engine.source.SourceConnector;
 import ravenworks.magpie.engine.source.SourceFactory;
 import ravenworks.magpie.engine.source.SourceRegistry;
+import ravenworks.magpie.engine.stream.StreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
 
@@ -35,6 +36,7 @@ public class Coordinator {
     private final SourceFactory sourceFactory;
     private final SinkRegistry sinkRegistry;
     private final SinkFactory sinkFactory;
+    private final StreamProducer sourceProducer;
     private final Map<String, SourceConnector> sourceConnectors = new LinkedHashMap<>();
     private final Map<String, SinkConnector> sinkConnectors = new LinkedHashMap<>();
 
@@ -44,9 +46,10 @@ public class Coordinator {
                        @NonNull SourceRegistry sourceRegistry,
                        @NonNull SourceFactory sourceFactory,
                        @NonNull SinkRegistry sinkRegistry,
-                       @NonNull SinkFactory sinkFactory) {
+                       @NonNull SinkFactory sinkFactory,
+                       @NonNull StreamProducer sourceProducer) {
         this(leaderLock, streamRegistry, streamProvider,
-                sourceRegistry, sourceFactory, sinkRegistry, sinkFactory, DEFAULT_IDLE_TIMEOUT_MS);
+                sourceRegistry, sourceFactory, sinkRegistry, sinkFactory, sourceProducer, DEFAULT_IDLE_TIMEOUT_MS);
     }
 
     public Coordinator(@NonNull LeaderLock leaderLock,
@@ -56,6 +59,7 @@ public class Coordinator {
                        @NonNull SourceFactory sourceFactory,
                        @NonNull SinkRegistry sinkRegistry,
                        @NonNull SinkFactory sinkFactory,
+                       @NonNull StreamProducer sourceProducer,
                        int idleTimeoutMs) {
         this.leaderLock = leaderLock;
         this.streamRegistry = streamRegistry;
@@ -64,6 +68,7 @@ public class Coordinator {
         this.sourceFactory = sourceFactory;
         this.sinkRegistry = sinkRegistry;
         this.sinkFactory = sinkFactory;
+        this.sourceProducer = sourceProducer;
         this.eventLoop = new EventLoop("Coordinator", idleTimeoutMs, this::dispatch);
     }
 
@@ -155,11 +160,11 @@ public class Coordinator {
     private void startSourceConnectors() {
         var sources = this.sourceRegistry.getSources();
         for (var definition : sources) {
-            var connector = this.sourceFactory.create(definition);
+            var connector = this.sourceFactory.create(this.sourceProducer, definition);
             this.sourceConnectors.put(definition.getName(), connector);
             connector.start();
         }
-        log.info("Source initialization complete, {} source(s)", sources.size());
+        log.info("Source connectors initialized, {} connector(s)", sources.size());
     }
 
     private void shutdownSourceConnectors() {
@@ -182,7 +187,7 @@ public class Coordinator {
             this.sinkConnectors.put(definition.getName(), connector);
             connector.start();
         }
-        log.info("Sink initialization complete, {} sink(s)", sinks.size());
+        log.info("Sink connectors initialized, {} connector(s)", sinks.size());
     }
 
     private void shutdownSinkConnectors() {

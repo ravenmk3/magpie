@@ -1,5 +1,7 @@
 package ravenworks.magpie.engine.source;
 
+import ravenworks.magpie.engine.stream.StreamProducer;
+
 import java.util.Map;
 
 
@@ -10,6 +12,6 @@ public interface SourceProvider {
 
     String type();
 
-    SourceConnector create(String name, Map<String, Object> properties);
+    SourceConnector create(StreamProducer producer, String name, Map<String, Object> properties);
 
 }

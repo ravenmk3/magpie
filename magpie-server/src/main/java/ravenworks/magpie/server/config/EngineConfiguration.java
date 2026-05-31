@@ -76,9 +76,10 @@ public class EngineConfiguration {
                                           @NonNull SourceRegistry sourceRegistry,
                                           @NonNull SourceFactory sourceFactory,
                                           @NonNull SinkRegistry sinkRegistry,
-                                          @NonNull SinkFactory sinkFactory) {
+                                          @NonNull SinkFactory sinkFactory,
+                                          @NonNull RoutingStreamProducer streamProducer) {
         return new Coordinator(leaderLock, streamRegistry, streamProvider,
-                sourceRegistry, sourceFactory, sinkRegistry, sinkFactory);
+                sourceRegistry, sourceFactory, sinkRegistry, sinkFactory, streamProducer);
     }
 
     @Bean
