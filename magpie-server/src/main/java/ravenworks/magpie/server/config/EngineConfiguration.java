@@ -19,15 +19,13 @@ import ravenworks.magpie.engine.source.SourceFactory;
 import ravenworks.magpie.engine.source.SourceFactoryImpl;
 import ravenworks.magpie.engine.source.SourceProvider;
 import ravenworks.magpie.engine.source.SourceRegistry;
-import ravenworks.magpie.engine.store.MetaStore;
-import ravenworks.magpie.engine.store.MetaStoreImpl;
-import ravenworks.magpie.engine.store.SinkRegistryImpl;
-import ravenworks.magpie.engine.store.SourceRegistryImpl;
-import ravenworks.magpie.engine.store.StreamRegistryImpl;
+import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
+import ravenworks.magpie.engine.store.*;
 import ravenworks.magpie.engine.stream.RoutingStreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -56,7 +54,9 @@ public class EngineConfiguration {
 
     @Bean
     public static SourceFactory sourceFactory(@NonNull List<SourceProvider> providers) {
-        return new SourceFactoryImpl(providers);
+        var merged = new ArrayList<>(providers);
+        merged.add(new SampleSourceProvider());
+        return new SourceFactoryImpl(merged);
     }
 
     @Bean
