@@ -64,7 +64,8 @@ public class RabbitStreamProducer implements StreamProducer {
                 .messageId(record.getId())
                 .messageBuilder()
                 .applicationProperties()
-                .entry("partition-key", record.getPartitionKey());
+                .entry("partition-key", record.getPartitionKey())
+                .entry("tenant-id", record.getTenantId());
         if (record.getHeaders() != null) {
             record.getHeaders().forEach(appProps::entry);
         }

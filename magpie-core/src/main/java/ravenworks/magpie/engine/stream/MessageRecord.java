@@ -15,6 +15,7 @@ import java.util.Map;
 public class MessageRecord implements Serializable {
 
     private String id;
+    private String tenantId;
     private String partitionKey;
     private String topic;
     private Map<String, String> headers;
