@@ -19,6 +19,7 @@ import ravenworks.magpie.engine.source.SourceFactory;
 import ravenworks.magpie.engine.source.SourceFactoryImpl;
 import ravenworks.magpie.engine.source.SourceProvider;
 import ravenworks.magpie.engine.source.SourceRegistry;
+import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
 import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
 import ravenworks.magpie.engine.store.*;
 import ravenworks.magpie.engine.stream.RoutingStreamProducer;
@@ -56,6 +57,7 @@ public class EngineConfiguration {
     public static SourceFactory sourceFactory(@NonNull List<SourceProvider> providers) {
         var merged = new ArrayList<>(providers);
         merged.add(new SampleSourceProvider());
+        merged.add(new MySqlPollSourceProvider());
         return new SourceFactoryImpl(merged);
     }
 
