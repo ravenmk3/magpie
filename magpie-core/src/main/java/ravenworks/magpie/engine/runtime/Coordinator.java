@@ -4,9 +4,9 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.lock.LeaderLock;
-import ravenworks.magpie.engine.model.StreamDefinition;
-import ravenworks.magpie.engine.store.MetaStore;
+import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProvider;
+import ravenworks.magpie.engine.stream.StreamRegistry;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -22,21 +22,21 @@ public class Coordinator {
 
     private final EventLoop eventLoop;
     private final LeaderLock leaderLock;
-    private final MetaStore metaStore;
+    private final StreamRegistry streamRegistry;
     private final StreamProvider streamProvider;
 
     public Coordinator(@NonNull LeaderLock leaderLock,
-                       @NonNull MetaStore metaStore,
+                       @NonNull StreamRegistry streamRegistry,
                        @NonNull StreamProvider streamProvider) {
-        this(leaderLock, metaStore, streamProvider, DEFAULT_IDLE_TIMEOUT_MS);
+        this(leaderLock, streamRegistry, streamProvider, DEFAULT_IDLE_TIMEOUT_MS);
     }
 
     public Coordinator(@NonNull LeaderLock leaderLock,
-                       @NonNull MetaStore metaStore,
+                       @NonNull StreamRegistry streamRegistry,
                        @NonNull StreamProvider streamProvider,
                        int idleTimeoutMs) {
         this.leaderLock = leaderLock;
-        this.metaStore = metaStore;
+        this.streamRegistry = streamRegistry;
         this.streamProvider = streamProvider;
         this.eventLoop = new EventLoop("Coordinator", idleTimeoutMs, this::dispatch);
     }
@@ -100,12 +100,11 @@ public class Coordinator {
     }
 
     protected void onLeaderAcquired() {
-        var topics = this.metaStore.getTopics();
-        for (var topic : topics) {
-            this.streamProvider.create(new StreamDefinition(
-                    topic.name(), topic.partitions(), topic.properties()));
+        var streams = this.streamRegistry.getStreams();
+        for (var stream : streams) {
+            this.streamProvider.create(stream);
         }
-        log.info("Streaming initialization complete, {} topics", topics.size());
+        log.info("Stream initialization complete, {} stream(s)", streams.size());
     }
 
     protected void onLeaderRenewed() {

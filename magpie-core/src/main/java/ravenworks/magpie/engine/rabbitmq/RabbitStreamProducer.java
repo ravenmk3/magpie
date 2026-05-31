@@ -6,7 +6,7 @@ import com.rabbitmq.stream.Producer;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.util.PartitionUtils;
-import ravenworks.magpie.engine.model.StreamDefinition;
+import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.MessageRecord;
 import ravenworks.magpie.engine.stream.SendResult;
 import ravenworks.magpie.engine.stream.StreamProducer;

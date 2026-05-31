@@ -4,7 +4,7 @@ import com.rabbitmq.stream.Environment;
 import com.rabbitmq.stream.StreamCreator;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
-import ravenworks.magpie.engine.model.StreamDefinition;
+import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 

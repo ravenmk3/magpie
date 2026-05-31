@@ -11,7 +11,10 @@ import ravenworks.magpie.engine.lock.LeaderLockImpl;
 import ravenworks.magpie.engine.runtime.Coordinator;
 import ravenworks.magpie.engine.store.MetaStore;
 import ravenworks.magpie.engine.store.MetaStoreImpl;
+import ravenworks.magpie.engine.store.StreamRegistryImpl;
+import ravenworks.magpie.engine.stream.RoutingStreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
+import ravenworks.magpie.engine.stream.StreamRegistry;
 
 
 @Configuration
@@ -28,10 +31,21 @@ public class EngineConfiguration {
     }
 
     @Bean
+    public static StreamRegistry streamRegistry(@NonNull TopicRepository topicRepository) {
+        return new StreamRegistryImpl(topicRepository);
+    }
+
+    @Bean
     public static Coordinator coordinator(@NonNull LeaderLock leaderLock,
-                                          @NonNull MetaStore metaStore,
+                                          @NonNull StreamRegistry streamRegistry,
                                           @NonNull StreamProvider streamProvider) {
-        return new Coordinator(leaderLock, metaStore, streamProvider);
+        return new Coordinator(leaderLock, streamRegistry, streamProvider);
+    }
+
+    @Bean
+    public static RoutingStreamProducer routingStreamProducer(@NonNull StreamProvider streamProvider,
+                                                               @NonNull StreamRegistry streamRegistry) {
+        return new RoutingStreamProducer(streamProvider, streamRegistry);
     }
 
     @Bean

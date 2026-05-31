@@ -1,4 +1,4 @@
-package ravenworks.magpie.engine.model;
+package ravenworks.magpie.engine.stream;
 
 import java.util.Map;
 
