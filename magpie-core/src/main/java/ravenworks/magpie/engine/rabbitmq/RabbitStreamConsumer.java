@@ -69,7 +69,9 @@ public class RabbitStreamConsumer implements StreamConsumer {
         this.rmqConsumer = this.environment.consumerBuilder()
                 .stream(streamName)
                 .name("magpie-" + this.name + "-" + this.partition)
-                .offset(offsetSpec)
+                .subscriptionListener(ctx ->
+                        ctx.offsetSpecification(offsetSpec)
+                )
                 .manualTrackingStrategy()
                 .builder()
                 .messageHandler((ctx, msg) -> {
