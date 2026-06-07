@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS `magpie_topic`
     COMMENT '消息主题';
 
 
-CREATE TABLE IF NOT EXISTS `magpie_event_source`
+CREATE TABLE IF NOT EXISTS `magpie_source`
 (
     `id`         CHAR(32)     NOT NULL COMMENT 'ID',
     `type`       VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '类型',
@@ -48,10 +48,10 @@ CREATE TABLE IF NOT EXISTS `magpie_event_source`
 )
     ENGINE = InnoDB
     CHARSET = utf8mb4
-    COMMENT '事件来源';
+    COMMENT '消息来源';
 
 
-CREATE TABLE IF NOT EXISTS `magpie_event_sink`
+CREATE TABLE IF NOT EXISTS `magpie_target`
 (
     `id`         CHAR(32)     NOT NULL COMMENT 'ID',
     `type`       VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '类型',
@@ -68,10 +68,10 @@ CREATE TABLE IF NOT EXISTS `magpie_event_sink`
 )
     ENGINE = InnoDB
     CHARSET = utf8mb4
-    COMMENT '事件接收';
+    COMMENT '消息目标';
 
 
-CREATE TABLE IF NOT EXISTS `magpie_event_sink_offset`
+CREATE TABLE IF NOT EXISTS `magpie_target_offset`
 (
     `id`         VARCHAR(128) NOT NULL COMMENT 'ID',
     `offset`     BIGINT       NOT NULL DEFAULT 0 COMMENT '消息偏移量',

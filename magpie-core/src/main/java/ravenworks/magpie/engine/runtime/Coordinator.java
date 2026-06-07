@@ -4,9 +4,9 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.lock.LeaderLock;
-import ravenworks.magpie.engine.sink.SinkConnector;
-import ravenworks.magpie.engine.sink.SinkFactory;
-import ravenworks.magpie.engine.sink.SinkRegistry;
+import ravenworks.magpie.engine.target.TargetConnector;
+import ravenworks.magpie.engine.target.TargetFactory;
+import ravenworks.magpie.engine.target.TargetRegistry;
 import ravenworks.magpie.engine.source.SourceConnector;
 import ravenworks.magpie.engine.source.SourceFactory;
 import ravenworks.magpie.engine.source.SourceRegistry;
@@ -34,22 +34,22 @@ public class Coordinator {
     private final StreamProvider streamProvider;
     private final SourceRegistry sourceRegistry;
     private final SourceFactory sourceFactory;
-    private final SinkRegistry sinkRegistry;
-    private final SinkFactory sinkFactory;
+    private final TargetRegistry targetRegistry;
+    private final TargetFactory targetFactory;
     private final StreamProducer sourceProducer;
     private final Map<String, SourceConnector> sourceConnectors = new LinkedHashMap<>();
-    private final Map<String, SinkConnector> sinkConnectors = new LinkedHashMap<>();
+    private final Map<String, TargetConnector> targetConnectors = new LinkedHashMap<>();
 
     public Coordinator(@NonNull LeaderLock leaderLock,
                        @NonNull StreamRegistry streamRegistry,
                        @NonNull StreamProvider streamProvider,
                        @NonNull SourceRegistry sourceRegistry,
                        @NonNull SourceFactory sourceFactory,
-                       @NonNull SinkRegistry sinkRegistry,
-                       @NonNull SinkFactory sinkFactory,
+                       @NonNull TargetRegistry targetRegistry,
+                       @NonNull TargetFactory targetFactory,
                        @NonNull StreamProducer sourceProducer) {
         this(leaderLock, streamRegistry, streamProvider,
-                sourceRegistry, sourceFactory, sinkRegistry, sinkFactory, sourceProducer, DEFAULT_IDLE_TIMEOUT_MS);
+                sourceRegistry, sourceFactory, targetRegistry, targetFactory, sourceProducer, DEFAULT_IDLE_TIMEOUT_MS);
     }
 
     public Coordinator(@NonNull LeaderLock leaderLock,
@@ -57,8 +57,8 @@ public class Coordinator {
                        @NonNull StreamProvider streamProvider,
                        @NonNull SourceRegistry sourceRegistry,
                        @NonNull SourceFactory sourceFactory,
-                       @NonNull SinkRegistry sinkRegistry,
-                       @NonNull SinkFactory sinkFactory,
+                       @NonNull TargetRegistry targetRegistry,
+                       @NonNull TargetFactory targetFactory,
                        @NonNull StreamProducer sourceProducer,
                        int idleTimeoutMs) {
         this.leaderLock = leaderLock;
@@ -66,8 +66,8 @@ public class Coordinator {
         this.streamProvider = streamProvider;
         this.sourceRegistry = sourceRegistry;
         this.sourceFactory = sourceFactory;
-        this.sinkRegistry = sinkRegistry;
-        this.sinkFactory = sinkFactory;
+        this.targetRegistry = targetRegistry;
+        this.targetFactory = targetFactory;
         this.sourceProducer = sourceProducer;
         this.eventLoop = new EventLoop("Coordinator", idleTimeoutMs, this::dispatch);
     }
@@ -133,7 +133,7 @@ public class Coordinator {
     protected void onLeaderAcquired() {
         this.initStreams();
         this.startSourceConnectors();
-        this.startSinkConnectors();
+        this.startTargetConnectors();
     }
 
     protected void onLeaderRenewed() {
@@ -141,12 +141,12 @@ public class Coordinator {
 
     protected void onLeaderLost() {
         this.shutdownSourceConnectors();
-        this.shutdownSinkConnectors();
+        this.shutdownTargetConnectors();
     }
 
     protected void onPreShutdown() {
         this.shutdownSourceConnectors();
-        this.shutdownSinkConnectors();
+        this.shutdownTargetConnectors();
     }
 
     private void initStreams() {
@@ -180,27 +180,27 @@ public class Coordinator {
         log.info("Source connectors shutdown complete");
     }
 
-    private void startSinkConnectors() {
-        var sinks = this.sinkRegistry.getSinks();
-        for (var definition : sinks) {
-            var connector = this.sinkFactory.create(this.streamProvider, definition);
-            this.sinkConnectors.put(definition.getName(), connector);
+    private void startTargetConnectors() {
+        var targets = this.targetRegistry.getTargets();
+        for (var definition : targets) {
+            var connector = this.targetFactory.create(this.streamProvider, definition);
+            this.targetConnectors.put(definition.getName(), connector);
             connector.start();
         }
-        log.info("Sink connectors initialized, {} connector(s)", sinks.size());
+        log.info("Target connectors initialized, {} connector(s)", targets.size());
     }
 
-    private void shutdownSinkConnectors() {
-        if (this.sinkConnectors.isEmpty()) {
+    private void shutdownTargetConnectors() {
+        if (this.targetConnectors.isEmpty()) {
             return;
         }
-        var futures = this.sinkConnectors.values()
+        var futures = this.targetConnectors.values()
                 .stream()
-                .map(SinkConnector::shutdown)
+                .map(TargetConnector::shutdown)
                 .toArray(CompletableFuture[]::new);
         CompletableFuture.allOf(futures).join();
-        this.sinkConnectors.clear();
-        log.info("Sink connectors shutdown complete");
+        this.targetConnectors.clear();
+        log.info("Target connectors shutdown complete");
     }
 
 }

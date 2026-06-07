@@ -1,9 +1,9 @@
-package ravenworks.magpie.engine.sink.print;
+package ravenworks.magpie.engine.target.print;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
-import ravenworks.magpie.engine.sink.SinkConnector;
+import ravenworks.magpie.engine.target.TargetConnector;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
 import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
@@ -21,18 +21,18 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Raven
  */
 @Slf4j
-public class PrintSinkConnector implements SinkConnector {
+public class PrintTargetConnector implements TargetConnector {
 
     private final StreamProvider provider;
     private final StreamRegistry streamRegistry;
     private final String name;
     private final String topic;
-    private final List<PrintSinkWorker> workers = new ArrayList<>();
+    private final List<PrintTargetWorker> workers = new ArrayList<>();
 
-    public PrintSinkConnector(@NonNull StreamProvider provider,
-                              @NonNull StreamRegistry streamRegistry,
-                              @NonNull String name,
-                              @NonNull String topic) {
+    public PrintTargetConnector(@NonNull StreamProvider provider,
+                                @NonNull StreamRegistry streamRegistry,
+                                @NonNull String name,
+                                @NonNull String topic) {
         this.provider = provider;
         this.streamRegistry = streamRegistry;
         this.name = name;
@@ -58,24 +58,24 @@ public class PrintSinkConnector implements SinkConnector {
         }
         var consumers = this.provider.consumer(definition, this.name);
         for (int i = 0; i < consumers.size(); i++) {
-            var worker = new PrintSinkWorker(this.name, i, consumers.get(i));
+            var worker = new PrintTargetWorker(this.name, i, consumers.get(i));
             this.workers.add(worker);
             worker.start();
         }
-        log.info("Print sink '{}' started, {} worker(s)", this.name, this.workers.size());
+        log.info("Print target '{}' started, {} worker(s)", this.name, this.workers.size());
     }
 
     @Override
     public CompletableFuture<Void> shutdown() {
         var futures = this.workers.stream()
-                .map(PrintSinkWorker::shutdown)
+                .map(PrintTargetWorker::shutdown)
                 .toArray(CompletableFuture[]::new);
         return CompletableFuture.allOf(futures)
-                .thenRun(() -> log.info("Print sink '{}' shutdown", this.name));
+                .thenRun(() -> log.info("Print target '{}' shutdown", this.name));
     }
 
 
-    private static class PrintSinkWorker {
+    private static class PrintTargetWorker {
 
         private static final int BACKPRESSURE_LIMIT = 100;
 
@@ -86,11 +86,11 @@ public class PrintSinkConnector implements SinkConnector {
         private final AtomicLong received = new AtomicLong();
         private final EventLoop eventLoop;
 
-        PrintSinkWorker(String name, int partition, StreamConsumer consumer) {
+        PrintTargetWorker(String name, int partition, StreamConsumer consumer) {
             this.name = name;
             this.partition = partition;
             this.consumer = consumer;
-            this.eventLoop = new EventLoop("snk-" + name + "-" + partition, 5_000, this::dispatch);
+            this.eventLoop = new EventLoop("tgt-" + name + "-" + partition, 5_000, this::dispatch);
         }
 
         void start() {

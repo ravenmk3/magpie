@@ -1,0 +1,38 @@
+package ravenworks.magpie.engine.target;
+
+import lombok.NonNull;
+import ravenworks.magpie.domain.entity.TargetEntity;
+import ravenworks.magpie.domain.repository.TargetRepository;
+
+import java.util.List;
+
+
+/**
+ * @author Raven
+ */
+public class TargetRegistryImpl implements TargetRegistry {
+
+    private final TargetRepository targetRepository;
+
+    public TargetRegistryImpl(@NonNull TargetRepository targetRepository) {
+        this.targetRepository = targetRepository;
+    }
+
+    @Override
+    public List<TargetDefinition> getTargets() {
+        return this.targetRepository.findAll()
+                .stream()
+                .map(this::toDefinition)
+                .toList();
+    }
+
+    private TargetDefinition toDefinition(TargetEntity entity) {
+        var def = new TargetDefinition();
+        def.setName(entity.getName());
+        def.setType(entity.getType());
+        def.setTopic(entity.getTopic());
+        def.setProperties(entity.getProperties());
+        return def;
+    }
+
+}

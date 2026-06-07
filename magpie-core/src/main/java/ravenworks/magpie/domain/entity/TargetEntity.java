@@ -13,8 +13,8 @@ import java.util.Map;
 @Getter
 @Setter
 @Entity
-@Table(name = "magpie_event_sink")
-public class EventSinkEntity implements Serializable {
+@Table(name = "magpie_target")
+public class TargetEntity implements Serializable {
 
     @Id
     @Column(name = "id", nullable = false, length = 32)

@@ -1,4 +1,4 @@
-package ravenworks.magpie.engine.sink;
+package ravenworks.magpie.engine.target;
 
 import lombok.Data;
 
@@ -10,7 +10,7 @@ import java.util.Map;
  * @author Raven
  */
 @Data
-public class SinkDefinition implements Serializable {
+public class TargetDefinition implements Serializable {
 
     private String name;
     private String type;

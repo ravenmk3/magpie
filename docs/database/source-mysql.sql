@@ -1,7 +1,7 @@
-CREATE TABLE IF NOT EXISTS `magpie_outbox_event`
+CREATE TABLE IF NOT EXISTS `magpie_outbox_message`
 (
     `id`            CHAR(32)     NOT NULL COMMENT 'ID',
-    `type`          VARCHAR(128) NOT NULL DEFAULT '' COMMENT '事件类型',
+    `type`          VARCHAR(128) NOT NULL DEFAULT '' COMMENT '消息类型',
     `time`          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '发生时间',
     `tenant_id`     VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '租户 ID',
     `topic`         VARCHAR(128) NOT NULL DEFAULT '' COMMENT '消息主题',
@@ -13,4 +13,4 @@ CREATE TABLE IF NOT EXISTS `magpie_outbox_event`
 )
     ENGINE = InnoDB
     CHARSET = utf8mb4
-    COMMENT '待发布事件';
+    COMMENT '待发布消息';

@@ -1,5 +1,6 @@
 # Maven
-target/
+magpie-core/target/
+magpie-server/target/
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
