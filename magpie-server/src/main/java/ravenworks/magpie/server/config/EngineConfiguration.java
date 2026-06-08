@@ -12,6 +12,7 @@ import ravenworks.magpie.engine.lock.LeaderLock;
 import ravenworks.magpie.engine.lock.LeaderLockImpl;
 import ravenworks.magpie.engine.runtime.Coordinator;
 import ravenworks.magpie.engine.sink.*;
+import ravenworks.magpie.engine.sink.http.HttpSinkProvider;
 import ravenworks.magpie.engine.sink.print.PrintSinkProvider;
 import ravenworks.magpie.engine.source.*;
 import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
@@ -61,6 +62,7 @@ public class EngineConfiguration {
                                           @NonNull StreamRegistry streamRegistry) {
         var merged = new ArrayList<>(providers);
         merged.add(new PrintSinkProvider(streamRegistry));
+        merged.add(new HttpSinkProvider(streamRegistry));
         return new SinkFactoryImpl(merged);
     }
 
