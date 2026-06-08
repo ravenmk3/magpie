@@ -30,6 +30,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
 
     };
 
+    private static final String DEFAULT_TABLE_NAME = "magpie_outbox_message";
     private static final int DEFAULT_POLL_INTERVAL_MS = 5_000;
     private static final int DEFAULT_BATCH_SIZE = 100;
     private static final int DEFAULT_RETRY_DELAY_MS = 300_000;
@@ -37,6 +38,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
 
     private final String name;
     private final StreamProducer producer;
+    private final String tableName;
     private final String url;
     private final String username;
     private final String password;
@@ -52,6 +54,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
                                     @NonNull Map<String, Object> properties) {
         this.name = name;
         this.producer = producer;
+        this.tableName = getStringProperty(properties, "tableName", DEFAULT_TABLE_NAME);
         this.url = getStringProperty(properties, "url", null);
         if (this.url == null || this.url.isEmpty()) {
             throw new IllegalArgumentException("Property 'url' is required for MySQL poll source");
@@ -134,7 +137,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
 
     private List<OutboxRecord> queryBatch() {
         List<OutboxRecord> records = new ArrayList<>();
-        String sql = "SELECT id, type, time, tenant_id, topic, partition_key, headers, payload FROM magpie_outbox_message ORDER BY id ASC, time ASC LIMIT ?";
+        String sql = "SELECT id, type, time, tenant_id, topic, partition_key, headers, payload FROM " + this.tableName + " ORDER BY id ASC, time ASC LIMIT ?";
         try (PreparedStatement ps = this.connection.prepareStatement(sql)) {
             ps.setInt(1, this.batchSize);
             try (ResultSet rs = ps.executeQuery()) {
@@ -184,7 +187,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
         String placeholders = records.stream()
                 .map(r -> "?")
                 .collect(Collectors.joining(","));
-        String sql = "DELETE FROM magpie_outbox_message WHERE id IN (" + placeholders + ")";
+        String sql = "DELETE FROM " + this.tableName + " WHERE id IN (" + placeholders + ")";
         try (PreparedStatement ps = this.connection.prepareStatement(sql)) {
             for (int i = 0; i < ids.size(); i++) {
                 ps.setString(i + 1, ids.get(i));
