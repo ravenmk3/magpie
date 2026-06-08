@@ -1,4 +1,4 @@
-package ravenworks.magpie.engine.target;
+package ravenworks.magpie.engine.sink;
 
 import lombok.NonNull;
 import ravenworks.magpie.domain.entity.TargetEntity;

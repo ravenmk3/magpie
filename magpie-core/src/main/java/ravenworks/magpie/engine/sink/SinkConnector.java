@@ -1,4 +1,4 @@
-package ravenworks.magpie.engine.target;
+package ravenworks.magpie.engine.sink;
 
 import ravenworks.magpie.common.runtime.Lifecycle;
 
@@ -6,7 +6,7 @@ import ravenworks.magpie.common.runtime.Lifecycle;
 /**
  * @author Raven
  */
-public interface TargetConnector extends Lifecycle {
+public interface SinkConnector extends Lifecycle {
 
     String type();
 
