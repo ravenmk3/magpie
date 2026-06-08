@@ -68,12 +68,14 @@ CREATE TABLE IF NOT EXISTS `magpie_target`
 )
     ENGINE = InnoDB
     CHARSET = utf8mb4
-    COMMENT '消息目标';
+    COMMENT '投递目标';
 
 
-CREATE TABLE IF NOT EXISTS `magpie_target_offset`
+CREATE TABLE IF NOT EXISTS `magpie_sink_offset`
 (
     `id`         VARCHAR(128) NOT NULL COMMENT 'ID',
+    `target`     VARCHAR(128) NOT NULL DEFAULT '' COMMENT '投递目标',
+    `partition`  INT          NOT NULL DEFAULT 0 COMMENT '分区',
     `offset`     BIGINT       NOT NULL DEFAULT 0 COMMENT '消息偏移量',
     `version`    INT          NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
     `created_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

@@ -5,6 +5,7 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ravenworks.magpie.domain.repository.LeaderLockRepository;
+import ravenworks.magpie.domain.repository.SinkOffsetRepository;
 import ravenworks.magpie.domain.repository.TargetRepository;
 import ravenworks.magpie.domain.repository.SourceRepository;
 import ravenworks.magpie.domain.repository.TopicRepository;
@@ -55,6 +56,11 @@ public class EngineConfiguration {
     @Bean
     public static TargetRegistry targetRegistry(@NonNull TargetRepository targetRepository) {
         return new TargetRegistryImpl(targetRepository);
+    }
+
+    @Bean
+    public static SinkOffsetStore sinkOffsetStore(@NonNull SinkOffsetRepository sinkOffsetRepository) {
+        return new SinkOffsetStore(sinkOffsetRepository);
     }
 
     @Bean
