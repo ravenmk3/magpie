@@ -4,8 +4,8 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.sink.SinkConnector;
-import ravenworks.magpie.engine.sink.SinkOffsetStore;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
+import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProvider;
@@ -26,19 +26,19 @@ public class PrintSinkConnector implements SinkConnector {
 
     private final StreamProvider provider;
     private final StreamRegistry streamRegistry;
-    private final SinkOffsetStore offsetStore;
+    private final OffsetTracker offsetTracker;
     private final String name;
     private final String topic;
     private final List<PrintSinkWorker> workers = new ArrayList<>();
 
     public PrintSinkConnector(@NonNull StreamProvider provider,
                               @NonNull StreamRegistry streamRegistry,
-                              @NonNull SinkOffsetStore offsetStore,
+                              @NonNull OffsetTracker offsetTracker,
                               @NonNull String name,
                               @NonNull String topic) {
         this.provider = provider;
         this.streamRegistry = streamRegistry;
-        this.offsetStore = offsetStore;
+        this.offsetTracker = offsetTracker;
         this.name = name;
         this.topic = topic;
     }
@@ -62,7 +62,7 @@ public class PrintSinkConnector implements SinkConnector {
         }
         var consumers = this.provider.consumer(definition, this.name);
         for (int i = 0; i < consumers.size(); i++) {
-            var worker = new PrintSinkWorker(this.name, i, consumers.get(i), this.offsetStore);
+            var worker = new PrintSinkWorker(this.name, i, consumers.get(i), this.offsetTracker);
             this.workers.add(worker);
             worker.start();
         }
@@ -86,21 +86,21 @@ public class PrintSinkConnector implements SinkConnector {
         private final String name;
         private final int partition;
         private final StreamConsumer consumer;
-        private final SinkOffsetStore offsetStore;
+        private final OffsetTracker offsetTracker;
         private final Semaphore semaphore = new Semaphore(BACKPRESSURE_LIMIT);
         private final AtomicLong received = new AtomicLong();
         private final EventLoop eventLoop;
 
-        PrintSinkWorker(String name, int partition, StreamConsumer consumer, SinkOffsetStore offsetStore) {
+        PrintSinkWorker(String name, int partition, StreamConsumer consumer, OffsetTracker offsetTracker) {
             this.name = name;
             this.partition = partition;
             this.consumer = consumer;
-            this.offsetStore = offsetStore;
+            this.offsetTracker = offsetTracker;
             this.eventLoop = new EventLoop("snk-" + name + "-" + partition, 5_000, this::dispatch);
         }
 
         void start() {
-            long offset = this.offsetStore.read(this.name, this.partition);
+            long offset = this.offsetTracker.read(this.name, this.partition);
             log.info("[{}] partition={} resuming from offset={}", this.name, this.partition, offset);
             this.consumer.consume(offset, record -> {
                 this.eventLoop.enqueue(record);

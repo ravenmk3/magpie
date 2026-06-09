@@ -4,8 +4,8 @@ import lombok.NonNull;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import ravenworks.magpie.domain.repository.ConsumerOffsetRepository;
 import ravenworks.magpie.domain.repository.LeaderLockRepository;
-import ravenworks.magpie.domain.repository.SinkOffsetRepository;
 import ravenworks.magpie.domain.repository.TargetRepository;
 import ravenworks.magpie.domain.repository.SourceRepository;
 import ravenworks.magpie.domain.repository.TopicRepository;
@@ -18,6 +18,8 @@ import ravenworks.magpie.engine.sink.print.PrintSinkProvider;
 import ravenworks.magpie.engine.source.*;
 import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
 import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
+import ravenworks.magpie.engine.stream.OffsetTracker;
+import ravenworks.magpie.engine.stream.OffsetTrackerImpl;
 import ravenworks.magpie.engine.stream.RoutingStreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
@@ -59,17 +61,17 @@ public class EngineConfiguration {
     }
 
     @Bean
-    public static SinkOffsetStore sinkOffsetStore(@NonNull SinkOffsetRepository sinkOffsetRepository) {
-        return new SinkOffsetStore(sinkOffsetRepository);
+    public static OffsetTracker offsetTracker(@NonNull ConsumerOffsetRepository consumerOffsetRepository) {
+        return new OffsetTrackerImpl(consumerOffsetRepository);
     }
 
     @Bean
     public static SinkFactory sinkFactory(@NonNull List<SinkProvider> providers,
                                           @NonNull StreamRegistry streamRegistry,
-                                          @NonNull SinkOffsetStore sinkOffsetStore) {
+                                          @NonNull OffsetTracker offsetTracker) {
         var merged = new ArrayList<>(providers);
-        merged.add(new PrintSinkProvider(streamRegistry, sinkOffsetStore));
-        merged.add(new HttpSinkProvider(streamRegistry, sinkOffsetStore));
+        merged.add(new PrintSinkProvider(streamRegistry, offsetTracker));
+        merged.add(new HttpSinkProvider(streamRegistry, offsetTracker));
         return new SinkFactoryImpl(merged);
     }
 

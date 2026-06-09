@@ -71,10 +71,10 @@ CREATE TABLE IF NOT EXISTS `magpie_target`
     COMMENT '投递目标';
 
 
-CREATE TABLE IF NOT EXISTS `magpie_sink_offset`
+CREATE TABLE IF NOT EXISTS `magpie_consumer_offset`
 (
     `id`         VARCHAR(128) NOT NULL COMMENT 'ID',
-    `target`     VARCHAR(128) NOT NULL DEFAULT '' COMMENT '投递目标',
+    `name`       VARCHAR(128) NOT NULL DEFAULT '' COMMENT '消费者名称',
     `partition`  INT          NOT NULL DEFAULT 0 COMMENT '分区',
     `offset`     BIGINT       NOT NULL DEFAULT 0 COMMENT '消息偏移量',
     `version`    INT          NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',

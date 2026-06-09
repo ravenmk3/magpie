@@ -2,9 +2,9 @@ package ravenworks.magpie.engine.sink.http;
 
 import lombok.NonNull;
 import ravenworks.magpie.engine.sink.SinkConnector;
-import ravenworks.magpie.engine.sink.SinkOffsetStore;
 import ravenworks.magpie.engine.sink.SinkProvider;
 import ravenworks.magpie.engine.sink.TargetDefinition;
+import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
 
@@ -15,12 +15,12 @@ import ravenworks.magpie.engine.stream.StreamRegistry;
 public class HttpSinkProvider implements SinkProvider {
 
     private final StreamRegistry streamRegistry;
-    private final SinkOffsetStore offsetStore;
+    private final OffsetTracker offsetTracker;
 
     public HttpSinkProvider(@NonNull StreamRegistry streamRegistry,
-                            @NonNull SinkOffsetStore offsetStore) {
+                            @NonNull OffsetTracker offsetTracker) {
         this.streamRegistry = streamRegistry;
-        this.offsetStore = offsetStore;
+        this.offsetTracker = offsetTracker;
     }
 
     @Override
@@ -31,7 +31,7 @@ public class HttpSinkProvider implements SinkProvider {
     @Override
     public SinkConnector create(@NonNull StreamProvider provider,
                                 @NonNull TargetDefinition definition) {
-        return new HttpSinkConnector(provider, this.streamRegistry, this.offsetStore,
+        return new HttpSinkConnector(provider, this.streamRegistry, this.offsetTracker,
                 definition.getName(), definition.getTopic(), definition.getProperties());
     }
 

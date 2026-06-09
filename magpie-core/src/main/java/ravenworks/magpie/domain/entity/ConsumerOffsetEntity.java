@@ -14,15 +14,15 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "magpie_sink_offset")
-public class SinkOffsetEntity implements Serializable {
+@Table(name = "magpie_consumer_offset")
+public class ConsumerOffsetEntity implements Serializable {
 
     @Id
     @Column(name = "id", nullable = false, length = 128)
     private String id;
 
-    @Column(name = "target", nullable = false, length = 128)
-    private String target;
+    @Column(name = "name", nullable = false, length = 128)
+    private String name;
 
     @Column(name = "`partition`", nullable = false)
     private int partition;
@@ -40,12 +40,12 @@ public class SinkOffsetEntity implements Serializable {
     @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime updatedAt;
 
-    public SinkOffsetEntity() {
+    public ConsumerOffsetEntity() {
     }
 
-    public SinkOffsetEntity(String id, String target, int partition, long offset) {
+    public ConsumerOffsetEntity(String id, String name, int partition, long offset) {
         this.id = id;
-        this.target = target;
+        this.name = name;
         this.partition = partition;
         this.offset = offset;
     }
