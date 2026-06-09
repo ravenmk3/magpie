@@ -14,8 +14,10 @@ import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -35,6 +37,10 @@ public class MySqlPollSourceConnector implements SourceConnector {
     private static final int DEFAULT_BATCH_SIZE = 100;
     private static final int DEFAULT_RETRY_DELAY_MS = 300_000;
     private static final Object POLL_SIGNAL = new Object();
+    private static final String STRATEGY_SPEED = "speed";
+    private static final String STRATEGY_ORDERED = "ordered";
+
+    private enum SendStrategy { SPEED, ORDERED }
 
     private final String name;
     private final StreamProducer producer;
@@ -44,6 +50,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
     private final String password;
     private final int batchSize;
     private final int retryDelay;
+    private final SendStrategy sendStrategy;
     private final EventLoop eventLoop;
 
     private Connection connection;
@@ -63,6 +70,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
         this.password = getStringProperty(properties, "password", "");
         this.batchSize = getIntProperty(properties, "batchSize", DEFAULT_BATCH_SIZE);
         this.retryDelay = getIntProperty(properties, "retryDelay", DEFAULT_RETRY_DELAY_MS);
+        this.sendStrategy = parseSendStrategy(getStringProperty(properties, "sendStrategy", STRATEGY_SPEED));
         int pollInterval = getIntProperty(properties, "pollInterval", DEFAULT_POLL_INTERVAL_MS);
         this.eventLoop = new EventLoop("src-" + name, pollInterval, this::dispatch);
     }
@@ -113,18 +121,13 @@ public class MySqlPollSourceConnector implements SourceConnector {
         if (records.isEmpty()) {
             return;
         }
-        var futures = sendBatch(records);
+        var futures = this.sendStrategy == SendStrategy.SPEED
+                ? sendBatchSpeed(records)
+                : sendBatchOrdered(records);
+
         CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
 
-        boolean allSucceeded = true;
-        for (var future : futures) {
-            SendResult result = future.getNow(null);
-            if (result == null || !result.isSucceeded()) {
-                allSucceeded = false;
-                break;
-            }
-        }
-        if (allSucceeded) {
+        if (checkAllSucceeded(futures)) {
             deleteBatch(records);
             if (records.size() == this.batchSize) {
                 this.eventLoop.enqueue(POLL_SIGNAL);
@@ -163,21 +166,67 @@ public class MySqlPollSourceConnector implements SourceConnector {
         return records;
     }
 
-    private List<CompletableFuture<SendResult>> sendBatch(List<OutboxRecord> records) {
+    private List<CompletableFuture<SendResult>> sendBatchSpeed(List<OutboxRecord> records) {
         List<CompletableFuture<SendResult>> futures = new ArrayList<>();
         for (var r : records) {
-            var msg = new MessageRecord()
-                    .setId(r.id)
-                    .setType(r.type)
-                    .setTime(r.time)
-                    .setTenantId(r.tenantId)
-                    .setTopic(r.topic)
-                    .setPartitionKey(r.partitionKey)
-                    .setHeaders(r.headers)
-                    .setPayload(r.payload != null ? r.payload.getBytes(StandardCharsets.UTF_8) : new byte[0]);
-            futures.add(this.producer.send(msg));
+            futures.add(this.producer.send(buildMessage(r)));
         }
         return futures;
+    }
+
+    private List<CompletableFuture<SendResult>> sendBatchOrdered(List<OutboxRecord> records) {
+        List<CompletableFuture<SendResult>> allFutures = new ArrayList<>();
+        List<CompletableFuture<SendResult>> currentBatch = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
+
+        for (var r : records) {
+            String key = r.partitionKey != null && !r.partitionKey.isEmpty()
+                    ? r.partitionKey
+                    : r.id;
+            if (seenKeys.contains(key)) {
+                flushSubBatch(currentBatch, allFutures);
+                currentBatch.clear();
+                seenKeys.clear();
+                if (!checkAllSucceeded(allFutures)) {
+                    return allFutures;
+                }
+            }
+            seenKeys.add(key);
+            currentBatch.add(this.producer.send(buildMessage(r)));
+        }
+        flushSubBatch(currentBatch, allFutures);
+        return allFutures;
+    }
+
+    private void flushSubBatch(List<CompletableFuture<SendResult>> batch,
+                               List<CompletableFuture<SendResult>> allFutures) {
+        if (batch.isEmpty()) {
+            return;
+        }
+        CompletableFuture.allOf(batch.toArray(CompletableFuture[]::new)).join();
+        allFutures.addAll(batch);
+    }
+
+    private boolean checkAllSucceeded(List<CompletableFuture<SendResult>> futures) {
+        for (var future : futures) {
+            SendResult result = future.getNow(null);
+            if (result == null || !result.isSucceeded()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private MessageRecord buildMessage(OutboxRecord r) {
+        return new MessageRecord()
+                .setId(r.id)
+                .setType(r.type)
+                .setTime(r.time)
+                .setTenantId(r.tenantId)
+                .setTopic(r.topic)
+                .setPartitionKey(r.partitionKey)
+                .setHeaders(r.headers)
+                .setPayload(r.payload != null ? r.payload.getBytes(StandardCharsets.UTF_8) : new byte[0]);
     }
 
     private void deleteBatch(List<OutboxRecord> records) {
@@ -243,6 +292,13 @@ public class MySqlPollSourceConnector implements SourceConnector {
             return s;
         }
         return defaultValue;
+    }
+
+    private static SendStrategy parseSendStrategy(String value) {
+        if (STRATEGY_ORDERED.equalsIgnoreCase(value)) {
+            return SendStrategy.ORDERED;
+        }
+        return SendStrategy.SPEED;
     }
 
 
