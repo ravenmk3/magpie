@@ -9,6 +9,7 @@ import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +23,11 @@ public class RabbitStreamProvider implements StreamProvider {
 
     private final Environment environment;
 
-    public RabbitStreamProvider(@NonNull List<String> uris) {
+    public RabbitStreamProvider(@NonNull List<URI> uris) {
         this.environment = Environment.builder()
                 .id("magpie")
-                .uris(uris)
+                .uris(uris.stream().map(URI::toString).toList())
+                .addressResolver(new RoundRobinAddressResolver(uris))
                 .build();
     }
 
