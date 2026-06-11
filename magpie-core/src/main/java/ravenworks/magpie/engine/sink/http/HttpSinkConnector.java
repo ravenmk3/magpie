@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
+import ravenworks.magpie.common.util.CircuitBreaker;
 import ravenworks.magpie.engine.sink.SinkConnector;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
 import ravenworks.magpie.engine.stream.StreamConsumer;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
@@ -40,18 +42,23 @@ public class HttpSinkConnector implements SinkConnector {
 
     private static final String PROP_URL = "url";
     private static final String PROP_TIMEOUT = "timeout";
-    private static final String PROP_RETRY_MAX_ATTEMPTS = "retry.maxAttempts";
     private static final String PROP_RETRY_BACKOFF = "retry.backoff";
     private static final String PROP_RETRY_DELAY = "retry.delay";
     private static final String PROP_RETRY_MAX_DELAY = "retry.maxDelay";
     private static final String PROP_RETRY_STATUS_CODES = "retry.statusCodes";
 
+    private static final String PROP_CIRCUIT_BREAKER_FAILURE_THRESHOLD = "circuitBreaker.failureThreshold";
+    private static final String PROP_CIRCUIT_BREAKER_HALF_OPEN_SUCCESSES = "circuitBreaker.halfOpenSuccessCount";
+    private static final String PROP_CIRCUIT_BREAKER_RESET_MS = "circuitBreaker.resetMs";
+
     private static final String DEFAULT_TIMEOUT = "10000";
-    private static final String DEFAULT_MAX_ATTEMPTS = "3";
     private static final String DEFAULT_BACKOFF = "fixed";
     private static final String DEFAULT_DELAY = "1000";
     private static final String DEFAULT_MAX_DELAY = "30000";
     private static final String DEFAULT_STATUS_CODES = "500-599,408,429";
+    private static final String DEFAULT_FAILURE_THRESHOLD = "20";
+    private static final String DEFAULT_HALF_OPEN_SUCCESSES = "10";
+    private static final String DEFAULT_RESET_MS = "600000";
 
     private static final Set<String> RESERVED_CE_KEYS = Set.of(
             "specversion", "id", "source", "type", "time",
@@ -121,13 +128,16 @@ public class HttpSinkConnector implements SinkConnector {
             throw new IllegalArgumentException("HttpSinkConnector requires 'url' property");
         }
         int timeout = Integer.parseInt(getString(props, PROP_TIMEOUT, DEFAULT_TIMEOUT));
-        int maxAttempts = Integer.parseInt(getString(props, PROP_RETRY_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS));
         String backoff = getString(props, PROP_RETRY_BACKOFF, DEFAULT_BACKOFF);
         long delay = Long.parseLong(getString(props, PROP_RETRY_DELAY, DEFAULT_DELAY));
         long maxDelay = Long.parseLong(getString(props, PROP_RETRY_MAX_DELAY, DEFAULT_MAX_DELAY));
         String statusCodesStr = getString(props, PROP_RETRY_STATUS_CODES, DEFAULT_STATUS_CODES);
         Set<Integer> retryStatusCodes = parseStatusCodes(statusCodesStr);
-        return new HttpConfig(url, timeout, maxAttempts, backoff, delay, maxDelay, retryStatusCodes);
+        int failureThreshold = Integer.parseInt(getString(props, PROP_CIRCUIT_BREAKER_FAILURE_THRESHOLD, DEFAULT_FAILURE_THRESHOLD));
+        int halfOpenSuccesses = Integer.parseInt(getString(props, PROP_CIRCUIT_BREAKER_HALF_OPEN_SUCCESSES, DEFAULT_HALF_OPEN_SUCCESSES));
+        long resetMs = Long.parseLong(getString(props, PROP_CIRCUIT_BREAKER_RESET_MS, DEFAULT_RESET_MS));
+        return new HttpConfig(url, timeout, backoff, delay, maxDelay, retryStatusCodes,
+                failureThreshold, halfOpenSuccesses, resetMs);
     }
 
     private static String getString(Map<String, Object> props, String key, String defaultValue) {
@@ -206,21 +216,27 @@ public class HttpSinkConnector implements SinkConnector {
     private static class HttpConfig {
         final String url;
         final int timeout;
-        final int maxAttempts;
         final String backoff;
         final long delay;
         final long maxDelay;
         final Set<Integer> retryStatusCodes;
+        final int circuitBreakerFailureThreshold;
+        final int circuitBreakerHalfOpenSuccessCount;
+        final long circuitBreakerResetMs;
 
-        HttpConfig(String url, int timeout, int maxAttempts, String backoff,
-                   long delay, long maxDelay, Set<Integer> retryStatusCodes) {
+        HttpConfig(String url, int timeout, String backoff,
+                   long delay, long maxDelay, Set<Integer> retryStatusCodes,
+                   int circuitBreakerFailureThreshold, int circuitBreakerHalfOpenSuccessCount,
+                   long circuitBreakerResetMs) {
             this.url = url;
             this.timeout = timeout;
-            this.maxAttempts = maxAttempts;
             this.backoff = backoff;
             this.delay = delay;
             this.maxDelay = maxDelay;
             this.retryStatusCodes = retryStatusCodes;
+            this.circuitBreakerFailureThreshold = circuitBreakerFailureThreshold;
+            this.circuitBreakerHalfOpenSuccessCount = circuitBreakerHalfOpenSuccessCount;
+            this.circuitBreakerResetMs = circuitBreakerResetMs;
         }
     }
 
@@ -237,6 +253,7 @@ public class HttpSinkConnector implements SinkConnector {
         private final EventLoop eventLoop;
         private final AtomicLong received = new AtomicLong();
         private final HttpClient httpClient;
+        private final CircuitBreaker circuitBreaker;
         private volatile Thread eventLoopThread;
         private volatile boolean stopped;
 
@@ -249,6 +266,10 @@ public class HttpSinkConnector implements SinkConnector {
             this.httpClient = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofMillis(config.timeout))
                     .build();
+            this.circuitBreaker = new CircuitBreaker(name + "-" + partition,
+                    config.circuitBreakerFailureThreshold,
+                    config.circuitBreakerHalfOpenSuccessCount,
+                    config.circuitBreakerResetMs);
         }
 
         void start() {
@@ -288,9 +309,11 @@ public class HttpSinkConnector implements SinkConnector {
         }
 
         private void pollAndProcess() {
+            if (this.circuitBreaker.isOpen()) {
+                return;
+            }
             var batch = this.consumer.poll(BATCH_SIZE, Duration.ofMillis(50));
             long completedOffset = processBatch(batch);
-            log.error("============={}", completedOffset);
             if (!batch.isEmpty() && completedOffset >= 0) {
                 this.consumer.commit(completedOffset + 1);
             }
@@ -312,8 +335,11 @@ public class HttpSinkConnector implements SinkConnector {
             long count = this.received.incrementAndGet();
             String json = buildCloudEventJson(record);
             int attempt = 0;
-            int maxAttempts = this.config.maxAttempts;
             while (!this.stopped) {
+                if (this.circuitBreaker.isOpen()) {
+                    LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+                    continue;
+                }
                 attempt++;
                 try {
                     var request = HttpRequest.newBuilder()
@@ -328,44 +354,33 @@ public class HttpSinkConnector implements SinkConnector {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         log.debug("[{}] partition={} offset={} count={} delivered, status={}",
                                 this.name, this.partition, record.getOffset(), count, response.statusCode());
+                        this.circuitBreaker.recordSuccess();
                         return true;
                     }
 
-                    if (attempt < maxAttempts && isRetryable(response.statusCode(), this.config.retryStatusCodes)) {
-                        long delay = computeBackoffDelay(this.config.backoff, this.config.delay,
-                                this.config.maxDelay, attempt);
-                        log.warn("[{}] partition={} offset={} count={} HTTP {} (attempt {}/{}), retry in {}ms",
-                                this.name, this.partition, record.getOffset(), count,
-                                response.statusCode(), attempt, maxAttempts, delay);
-                        LockSupport.parkNanos(delay * 1_000_000L);
-                        continue;
-                    }
-
-                        log.error("[{}] partition={} offset={} count={} delivery failed, HTTP {} body={}",
-                                this.name, this.partition, record.getOffset(), count,
-                                response.statusCode(), response.body());
-                        return true;
+                    long backoffDelay = computeBackoffDelay(this.config.backoff, this.config.delay,
+                            this.config.maxDelay, attempt);
+                    log.warn("[{}] partition={} offset={} count={} HTTP {} (attempt {}), retry in {}ms",
+                            this.name, this.partition, record.getOffset(), count,
+                            response.statusCode(), attempt, backoffDelay);
+                    this.circuitBreaker.recordFailure();
+                    LockSupport.parkNanos(backoffDelay * 1_000_000L);
 
                 } catch (IOException e) {
-                    if (attempt < maxAttempts && !this.stopped) {
-                        long delay = computeBackoffDelay(this.config.backoff, this.config.delay,
-                                this.config.maxDelay, attempt);
-                        log.warn("[{}] partition={} offset={} count={} IO error (attempt {}/{}), retry in {}ms: {}",
-                                this.name, this.partition, record.getOffset(), count,
-                                attempt, maxAttempts, delay, e.getMessage());
-                        LockSupport.parkNanos(delay * 1_000_000L);
-                        continue;
-                    }
-                        log.error("[{}] partition={} offset={} count={} delivery failed after {} attempts: {}",
-                                this.name, this.partition, record.getOffset(), count, maxAttempts, e.getMessage());
-                        return true;
+                    long backoffDelay = computeBackoffDelay(this.config.backoff, this.config.delay,
+                            this.config.maxDelay, attempt);
+                    log.warn("[{}] partition={} offset={} count={} IO error (attempt {}), retry in {}ms: {}",
+                            this.name, this.partition, record.getOffset(), count,
+                            attempt, backoffDelay, e.getMessage());
+                    this.circuitBreaker.recordFailure();
+                    LockSupport.parkNanos(backoffDelay * 1_000_000L);
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                        log.warn("[{}] partition={} offset={} count={} interrupted",
-                                this.name, this.partition, record.getOffset(), count);
-                        return true;
-                    }
+                    log.warn("[{}] partition={} offset={} count={} interrupted",
+                            this.name, this.partition, record.getOffset(), count);
+                    return false;
+                }
             }
             return false;
         }
