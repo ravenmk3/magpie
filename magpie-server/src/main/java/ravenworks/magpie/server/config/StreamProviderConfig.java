@@ -4,6 +4,7 @@ import lombok.NonNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ravenworks.magpie.engine.rabbitmq.RabbitStreamProvider;
+import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamProvider;
 
 
@@ -14,8 +15,9 @@ import ravenworks.magpie.engine.stream.StreamProvider;
 public class StreamProviderConfig {
 
     @Bean
-    private static StreamProvider streamProvider(@NonNull RabbitStreamProperties properties) {
-        return new RabbitStreamProvider(properties.getUris());
+    private static StreamProvider streamProvider(@NonNull RabbitStreamProperties properties,
+                                                 @NonNull OffsetTracker offsetTracker) {
+        return new RabbitStreamProvider(properties.getUris(), offsetTracker);
     }
 
 }

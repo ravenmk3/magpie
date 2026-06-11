@@ -4,7 +4,6 @@ import lombok.NonNull;
 import ravenworks.magpie.engine.sink.SinkConnector;
 import ravenworks.magpie.engine.sink.SinkProvider;
 import ravenworks.magpie.engine.sink.TargetDefinition;
-import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
 
@@ -15,12 +14,9 @@ import ravenworks.magpie.engine.stream.StreamRegistry;
 public class PrintSinkProvider implements SinkProvider {
 
     private final StreamRegistry streamRegistry;
-    private final OffsetTracker offsetTracker;
 
-    public PrintSinkProvider(@NonNull StreamRegistry streamRegistry,
-                             @NonNull OffsetTracker offsetTracker) {
+    public PrintSinkProvider(@NonNull StreamRegistry streamRegistry) {
         this.streamRegistry = streamRegistry;
-        this.offsetTracker = offsetTracker;
     }
 
     @Override
@@ -31,7 +27,7 @@ public class PrintSinkProvider implements SinkProvider {
     @Override
     public SinkConnector create(@NonNull StreamProvider provider,
                                 @NonNull TargetDefinition definition) {
-        return new PrintSinkConnector(provider, this.streamRegistry, this.offsetTracker,
+        return new PrintSinkConnector(provider, this.streamRegistry,
                 definition.getName(), definition.getTopic());
     }
 

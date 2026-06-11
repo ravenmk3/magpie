@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS `magpie_consumer_offset`
     `created_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
 
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_name_partition` (`name`, `partition`)
 )
     ENGINE = InnoDB
     CHARSET = utf8mb4

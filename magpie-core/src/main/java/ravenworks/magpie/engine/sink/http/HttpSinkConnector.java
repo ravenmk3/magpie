@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.sink.SinkConnector;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
-import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProvider;
@@ -27,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
@@ -62,7 +60,6 @@ public class HttpSinkConnector implements SinkConnector {
 
     private final StreamProvider provider;
     private final StreamRegistry streamRegistry;
-    private final OffsetTracker offsetTracker;
     private final String name;
     private final String topic;
     private final HttpConfig config;
@@ -70,13 +67,11 @@ public class HttpSinkConnector implements SinkConnector {
 
     public HttpSinkConnector(@NonNull StreamProvider provider,
                              @NonNull StreamRegistry streamRegistry,
-                             @NonNull OffsetTracker offsetTracker,
                              @NonNull String name,
                              @NonNull String topic,
                              Map<String, Object> properties) {
         this.provider = provider;
         this.streamRegistry = streamRegistry;
-        this.offsetTracker = offsetTracker;
         this.name = name;
         this.topic = topic;
         this.config = parseConfig(properties);
@@ -101,7 +96,7 @@ public class HttpSinkConnector implements SinkConnector {
         }
         var consumers = this.provider.consumer(definition, this.name);
         for (int i = 0; i < consumers.size(); i++) {
-            var worker = new HttpSinkWorker(this.name, i, consumers.get(i), this.config, this.offsetTracker);
+            var worker = new HttpSinkWorker(this.name, i, consumers.get(i), this.config);
             this.workers.add(worker);
             worker.start();
         }
@@ -231,27 +226,25 @@ public class HttpSinkConnector implements SinkConnector {
 
     private static class HttpSinkWorker {
 
-        private static final int BACKPRESSURE_LIMIT = 100;
+        private static final int BUFFER_SIZE = 200;
+        private static final int BATCH_SIZE = 100;
+        private static final Object POLL_SIGNAL = new Object();
 
         private final String name;
         private final int partition;
         private final StreamConsumer consumer;
         private final HttpConfig config;
-        private final OffsetTracker offsetTracker;
-        private final Semaphore semaphore = new Semaphore(BACKPRESSURE_LIMIT);
-        private final AtomicLong received = new AtomicLong();
         private final EventLoop eventLoop;
+        private final AtomicLong received = new AtomicLong();
         private final HttpClient httpClient;
         private volatile Thread eventLoopThread;
         private volatile boolean stopped;
 
-        HttpSinkWorker(String name, int partition, StreamConsumer consumer, HttpConfig config,
-                       OffsetTracker offsetTracker) {
+        HttpSinkWorker(String name, int partition, StreamConsumer consumer, HttpConfig config) {
             this.name = name;
             this.partition = partition;
             this.consumer = consumer;
             this.config = config;
-            this.offsetTracker = offsetTracker;
             this.eventLoop = new EventLoop("snk-" + name + "-" + partition, 5_000, this::dispatch);
             this.httpClient = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofMillis(config.timeout))
@@ -259,16 +252,7 @@ public class HttpSinkConnector implements SinkConnector {
         }
 
         void start() {
-            long offset = this.offsetTracker.read(this.name, this.partition);
-            log.info("[{}] partition={} resuming from offset={}", this.name, this.partition, offset);
-            this.consumer.consume(offset, record -> {
-                this.eventLoop.enqueue(record);
-                try {
-                    this.semaphore.acquire();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
+            this.consumer.consume(BUFFER_SIZE);
             this.eventLoop.start();
         }
 
@@ -278,30 +262,55 @@ public class HttpSinkConnector implements SinkConnector {
             if (t != null) {
                 LockSupport.unpark(t);
             }
-            try {
-                this.consumer.close();
-            } catch (Exception ignored) {
-            }
             return this.eventLoop.shutdown();
         }
 
         private void dispatch(Object event) {
             if (event instanceof EventLoop.Started) {
                 this.eventLoopThread = Thread.currentThread();
+                this.eventLoop.enqueue(POLL_SIGNAL);
+                return;
+            }
+            if (event instanceof EventLoop.PreShutdown) {
+                try {
+                    this.consumer.close();
+                } catch (Exception e) {
+                    log.warn("[{}] partition={} error closing consumer", this.name, this.partition, e);
+                }
                 return;
             }
             if (this.stopped) {
                 return;
             }
-            if (event instanceof ConsumerRecord record) {
-                long count = this.received.incrementAndGet();
-                String json = buildCloudEventJson(record);
-                deliverWithRetry(json, count, record);
-                this.semaphore.release();
+            if (event instanceof EventLoop.Idle || event == POLL_SIGNAL) {
+                pollAndProcess();
             }
         }
 
-        private void deliverWithRetry(String json, long count, ConsumerRecord record) {
+        private void pollAndProcess() {
+            var batch = this.consumer.poll(BATCH_SIZE, Duration.ofMillis(50));
+            long completedOffset = processBatch(batch);
+            log.error("============={}", completedOffset);
+            if (!batch.isEmpty() && completedOffset >= 0) {
+                this.consumer.commit(completedOffset + 1);
+            }
+            this.eventLoop.enqueue(POLL_SIGNAL);
+        }
+
+        private long processBatch(List<ConsumerRecord> batch) {
+            long lastCompletedOffset = -1;
+            for (var record : batch) {
+                if (!deliverWithRetry(record)) {
+                    return lastCompletedOffset;
+                }
+                lastCompletedOffset = record.getOffset();
+            }
+            return lastCompletedOffset;
+        }
+
+        private boolean deliverWithRetry(ConsumerRecord record) {
+            long count = this.received.incrementAndGet();
+            String json = buildCloudEventJson(record);
             int attempt = 0;
             int maxAttempts = this.config.maxAttempts;
             while (!this.stopped) {
@@ -319,7 +328,7 @@ public class HttpSinkConnector implements SinkConnector {
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         log.debug("[{}] partition={} offset={} count={} delivered, status={}",
                                 this.name, this.partition, record.getOffset(), count, response.statusCode());
-                        return;
+                        return true;
                     }
 
                     if (attempt < maxAttempts && isRetryable(response.statusCode(), this.config.retryStatusCodes)) {
@@ -332,10 +341,10 @@ public class HttpSinkConnector implements SinkConnector {
                         continue;
                     }
 
-                    log.error("[{}] partition={} offset={} count={} delivery failed, HTTP {} body={}",
-                            this.name, this.partition, record.getOffset(), count,
-                            response.statusCode(), response.body());
-                    return;
+                        log.error("[{}] partition={} offset={} count={} delivery failed, HTTP {} body={}",
+                                this.name, this.partition, record.getOffset(), count,
+                                response.statusCode(), response.body());
+                        return true;
 
                 } catch (IOException e) {
                     if (attempt < maxAttempts && !this.stopped) {
@@ -347,17 +356,18 @@ public class HttpSinkConnector implements SinkConnector {
                         LockSupport.parkNanos(delay * 1_000_000L);
                         continue;
                     }
-                    log.error("[{}] partition={} offset={} count={} delivery failed after {} attempts: {}",
-                            this.name, this.partition, record.getOffset(), count, maxAttempts, e.getMessage());
-                    return;
+                        log.error("[{}] partition={} offset={} count={} delivery failed after {} attempts: {}",
+                                this.name, this.partition, record.getOffset(), count, maxAttempts, e.getMessage());
+                        return true;
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    log.warn("[{}] partition={} offset={} count={} interrupted",
-                            this.name, this.partition, record.getOffset(), count);
-                    return;
-                }
+                        log.warn("[{}] partition={} offset={} count={} interrupted",
+                                this.name, this.partition, record.getOffset(), count);
+                        return true;
+                    }
             }
+            return false;
         }
     }
 

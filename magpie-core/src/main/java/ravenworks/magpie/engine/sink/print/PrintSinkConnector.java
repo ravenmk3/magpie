@@ -5,18 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.sink.SinkConnector;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
-import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProvider;
 import ravenworks.magpie.engine.stream.StreamRegistry;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
-
 
 /**
  * @author Raven
@@ -26,19 +24,16 @@ public class PrintSinkConnector implements SinkConnector {
 
     private final StreamProvider provider;
     private final StreamRegistry streamRegistry;
-    private final OffsetTracker offsetTracker;
     private final String name;
     private final String topic;
     private final List<PrintSinkWorker> workers = new ArrayList<>();
 
     public PrintSinkConnector(@NonNull StreamProvider provider,
                               @NonNull StreamRegistry streamRegistry,
-                              @NonNull OffsetTracker offsetTracker,
                               @NonNull String name,
                               @NonNull String topic) {
         this.provider = provider;
         this.streamRegistry = streamRegistry;
-        this.offsetTracker = offsetTracker;
         this.name = name;
         this.topic = topic;
     }
@@ -62,7 +57,7 @@ public class PrintSinkConnector implements SinkConnector {
         }
         var consumers = this.provider.consumer(definition, this.name);
         for (int i = 0; i < consumers.size(); i++) {
-            var worker = new PrintSinkWorker(this.name, i, consumers.get(i), this.offsetTracker);
+            var worker = new PrintSinkWorker(this.name, i, consumers.get(i));
             this.workers.add(worker);
             worker.start();
         }
@@ -81,55 +76,71 @@ public class PrintSinkConnector implements SinkConnector {
 
     private static class PrintSinkWorker {
 
-        private static final int BACKPRESSURE_LIMIT = 100;
+        private static final int BUFFER_SIZE = 200;
+        private static final int BATCH_SIZE = 100;
+        private static final Object POLL_SIGNAL = new Object();
 
         private final String name;
         private final int partition;
         private final StreamConsumer consumer;
-        private final OffsetTracker offsetTracker;
-        private final Semaphore semaphore = new Semaphore(BACKPRESSURE_LIMIT);
-        private final AtomicLong received = new AtomicLong();
         private final EventLoop eventLoop;
+        private final AtomicLong received = new AtomicLong();
+        private volatile boolean stopped;
 
-        PrintSinkWorker(String name, int partition, StreamConsumer consumer, OffsetTracker offsetTracker) {
+        PrintSinkWorker(String name, int partition, StreamConsumer consumer) {
             this.name = name;
             this.partition = partition;
             this.consumer = consumer;
-            this.offsetTracker = offsetTracker;
             this.eventLoop = new EventLoop("snk-" + name + "-" + partition, 5_000, this::dispatch);
         }
 
         void start() {
-            long offset = this.offsetTracker.read(this.name, this.partition);
-            log.info("[{}] partition={} resuming from offset={}", this.name, this.partition, offset);
-            this.consumer.consume(offset, record -> {
-                this.eventLoop.enqueue(record);
-                try {
-                    this.semaphore.acquire();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
+            this.consumer.consume(BUFFER_SIZE);
             this.eventLoop.start();
         }
 
         CompletableFuture<Void> shutdown() {
-            try {
-                this.consumer.close();
-            } catch (Exception ignored) {
-            }
+            this.stopped = true;
             return this.eventLoop.shutdown();
         }
 
         private void dispatch(Object event) {
-            if (event instanceof ConsumerRecord record) {
-                long count = this.received.incrementAndGet();
-                log.info("[{}] partition={} offset={} count={} payload={}",
-                        this.name, this.partition, record.getOffset(), count, new String(record.getPayload()));
-                this.semaphore.release();
+            if (event instanceof EventLoop.Started) {
+                this.eventLoop.enqueue(POLL_SIGNAL);
+                return;
+            }
+            if (event instanceof EventLoop.PreShutdown) {
+                try {
+                    this.consumer.close();
+                } catch (Exception e) {
+                    log.warn("[{}] partition={} error closing consumer", this.name, this.partition, e);
+                }
+                return;
+            }
+            if (this.stopped) {
+                return;
+            }
+            if (event instanceof EventLoop.Idle || event == POLL_SIGNAL) {
+                pollAndProcess();
             }
         }
 
+        private void pollAndProcess() {
+            var batch = this.consumer.poll(BATCH_SIZE, Duration.ofMillis(50));
+            for (var record : batch) {
+                log(record);
+            }
+            if (!batch.isEmpty()) {
+                this.consumer.commit(batch.getLast().getOffset() + 1);
+            }
+            this.eventLoop.enqueue(POLL_SIGNAL);
+        }
+
+        private void log(ConsumerRecord record) {
+            long count = this.received.incrementAndGet();
+            log.info("[{}] partition={} offset={} count={} payload={}",
+                    this.name, this.partition, record.getOffset(), count, new String(record.getPayload()));
+        }
     }
 
 }

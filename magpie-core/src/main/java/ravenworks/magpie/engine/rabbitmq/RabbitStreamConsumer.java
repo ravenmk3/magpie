@@ -1,22 +1,21 @@
 package ravenworks.magpie.engine.rabbitmq;
 
-import com.rabbitmq.stream.Consumer;
-import com.rabbitmq.stream.Environment;
-import com.rabbitmq.stream.Message;
-import com.rabbitmq.stream.OffsetSpecification;
+import com.rabbitmq.stream.*;
+import com.rabbitmq.stream.MessageHandler.Context;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.util.TimeUtils;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
-import ravenworks.magpie.engine.stream.MessageHandler;
+import ravenworks.magpie.engine.stream.OffsetTracker;
 import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 
 /**
  * @author Raven
@@ -30,20 +29,23 @@ public class RabbitStreamConsumer implements StreamConsumer {
     private final StreamDefinition definition;
     private final int partition;
     private final String topic;
+    private final String name;
+    private final OffsetTracker offsetTracker;
     private final AtomicBoolean consuming = new AtomicBoolean(false);
 
-    private final String name;
-
     private volatile Consumer rmqConsumer;
+    private volatile BlockingQueue<QueuedItem> queue;
 
     public RabbitStreamConsumer(@NonNull Environment environment,
                                 @NonNull StreamDefinition definition,
                                 int partition,
-                                String name) {
+                                String name,
+                                @NonNull OffsetTracker offsetTracker) {
         this.environment = environment;
         this.definition = definition;
         this.partition = partition;
         this.name = name;
+        this.offsetTracker = offsetTracker;
         this.topic = definition.name();
     }
 
@@ -53,32 +55,75 @@ public class RabbitStreamConsumer implements StreamConsumer {
     }
 
     @Override
-    public void consume(long offset, @NonNull MessageHandler handler) {
+    public void consume(int bufferSize) {
         if (!this.consuming.compareAndSet(false, true)) {
             throw new IllegalStateException("Already consuming");
         }
-        OffsetSpecification offsetSpec;
-        if (offset > 0) {
-            offsetSpec = OffsetSpecification.offset(offset);
-        } else if (offset == -1) {
-            offsetSpec = OffsetSpecification.next();
-        } else {
-            offsetSpec = OffsetSpecification.first();
-        }
+        this.queue = new LinkedBlockingQueue<>(bufferSize * 2);
+
         String streamName = RabbitUtils.streamQueueName(this.definition.name(), this.partition);
         this.rmqConsumer = this.environment.consumerBuilder()
                 .stream(streamName)
                 .name("magpie-" + this.name + "-" + this.partition)
-                .subscriptionListener(ctx ->
-                        ctx.offsetSpecification(offsetSpec)
-                )
+                .flow()
+                .initialCredits(bufferSize)
+                .strategy(ConsumerFlowStrategy.creditOnProcessedMessageCount(bufferSize, 0.5))
+                .builder()
+                .subscriptionListener(ctx -> {
+                    long offset = this.offsetTracker.read(this.name, this.partition);
+                    log.info("[{}] partition={} resuming from offset={}", this.name, this.partition, offset);
+                    ctx.offsetSpecification(resolveOffset(offset));
+                })
                 .manualTrackingStrategy()
                 .builder()
                 .messageHandler((ctx, msg) -> {
-                    ConsumerRecord record = convert(msg, ctx.offset());
-                    handler.handle(record);
+                    try {
+                        this.queue.put(new QueuedItem(ctx, msg));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 })
                 .build();
+        log.info("[{}] partition={} consumer started, bufferSize={}", this.name, this.partition, bufferSize);
+    }
+
+    @Override
+    public List<ConsumerRecord> poll(int count, @NonNull Duration timeout) {
+        if (this.queue == null) {
+            return List.of();
+        }
+        List<ConsumerRecord> result = new ArrayList<>();
+        long deadline = System.nanoTime() + timeout.toNanos();
+        for (int i = 0; i < count; i++) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                break;
+            }
+            QueuedItem item;
+            try {
+                item = this.queue.poll(remaining, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            if (item == null) {
+                break;
+            }
+            item.ctx().processed();
+            ConsumerRecord record = convert(item.ctx(), item.msg());
+            result.add(record);
+        }
+        return result;
+    }
+
+    @Override
+    public void commit(long offset) {
+        try {
+            this.offsetTracker.write(this.name, this.partition, offset);
+        } catch (Exception e) {
+            log.warn("[{}] partition={} failed to commit offset={}",
+                    this.name, this.partition, offset, e);
+        }
     }
 
     @Override
@@ -89,9 +134,19 @@ public class RabbitStreamConsumer implements StreamConsumer {
         }
     }
 
-    private ConsumerRecord convert(@NonNull Message msg, long offset) {
+    private static OffsetSpecification resolveOffset(long offset) {
+        if (offset < 0) {
+            return OffsetSpecification.next();
+        }
+        if (offset == 0) {
+            return OffsetSpecification.first();
+        }
+        return OffsetSpecification.offset(offset);
+    }
+
+    private ConsumerRecord convert(@NonNull Context ctx, @NonNull Message msg) {
         var record = new ConsumerRecord();
-        record.setOffset(offset);
+        record.setOffset(ctx.offset());
         record.setPayload(msg.getBodyAsBinary());
         record.setTopic(this.topic);
 
@@ -119,6 +174,9 @@ public class RabbitStreamConsumer implements StreamConsumer {
             record.setHeaders(headers);
         }
         return record;
+    }
+
+    private record QueuedItem(Context ctx, Message msg) {
     }
 
 }

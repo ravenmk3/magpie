@@ -8,6 +8,7 @@ import ravenworks.magpie.engine.stream.StreamConsumer;
 import ravenworks.magpie.engine.stream.StreamDefinition;
 import ravenworks.magpie.engine.stream.StreamProducer;
 import ravenworks.magpie.engine.stream.StreamProvider;
+import ravenworks.magpie.engine.stream.OffsetTracker;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -22,8 +23,10 @@ import java.util.Map;
 public class RabbitStreamProvider implements StreamProvider {
 
     private final Environment environment;
+    private final OffsetTracker offsetTracker;
 
-    public RabbitStreamProvider(@NonNull List<URI> uris) {
+    public RabbitStreamProvider(@NonNull List<URI> uris, @NonNull OffsetTracker offsetTracker) {
+        this.offsetTracker = offsetTracker;
         this.environment = Environment.builder()
                 .id("magpie")
                 .uris(uris.stream().map(URI::toString).toList())
@@ -49,7 +52,7 @@ public class RabbitStreamProvider implements StreamProvider {
     public List<StreamConsumer> consumer(@NonNull StreamDefinition definition, String name) {
         List<StreamConsumer> consumers = new ArrayList<>();
         for (int i = 0; i < definition.partitions(); i++) {
-            consumers.add(new RabbitStreamConsumer(this.environment, definition, i, name));
+            consumers.add(new RabbitStreamConsumer(this.environment, definition, i, name, this.offsetTracker));
         }
         return consumers;
     }
