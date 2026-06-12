@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ravenworks.magpie.domain.entity.ConsumerOffsetEntity;
 
+
 public interface ConsumerOffsetRepository extends JpaRepository<ConsumerOffsetEntity, String> {
 
     @Modifying

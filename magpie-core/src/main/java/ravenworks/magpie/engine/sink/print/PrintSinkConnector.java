@@ -4,17 +4,14 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.engine.sink.SinkConnector;
-import ravenworks.magpie.engine.stream.ConsumerRecord;
-import ravenworks.magpie.engine.stream.StreamConsumer;
-import ravenworks.magpie.engine.stream.StreamDefinition;
-import ravenworks.magpie.engine.stream.StreamProvider;
-import ravenworks.magpie.engine.stream.StreamRegistry;
+import ravenworks.magpie.engine.stream.*;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
+
 
 /**
  * @author Raven
@@ -76,8 +73,8 @@ public class PrintSinkConnector implements SinkConnector {
 
     private static class PrintSinkWorker {
 
-        private static final int BUFFER_SIZE = 200;
-        private static final int BATCH_SIZE = 100;
+        private static final int BUFFER_SIZE = 1000;
+        private static final int BATCH_SIZE = 500;
         private static final Object POLL_SIGNAL = new Object();
 
         private final String name;
@@ -141,6 +138,7 @@ public class PrintSinkConnector implements SinkConnector {
             log.info("[{}] partition={} offset={} count={} payload={}",
                     this.name, this.partition, record.getOffset(), count, new String(record.getPayload()));
         }
+
     }
 
 }

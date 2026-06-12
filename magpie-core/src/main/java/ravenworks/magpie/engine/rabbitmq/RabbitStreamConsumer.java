@@ -17,13 +17,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+
 /**
  * @author Raven
  */
 @Slf4j
 public class RabbitStreamConsumer implements StreamConsumer {
 
-    private static final Set<String> KNOWN_KEYS = Set.of("x-partition-key", "x-tenant-id", "x-type", "x-time");
+    private static final Set<String> KNOWN_KEYS = Set.of("x-business-key", "x-tenant-id", "x-type", "x-event-time");
 
     private final Environment environment;
     private final StreamDefinition definition;
@@ -160,10 +161,10 @@ public class RabbitStreamConsumer implements StreamConsumer {
         if (appProps != null) {
             record.setType((String) appProps.get("x-type"));
             record.setTenantId((String) appProps.get("x-tenant-id"));
-            record.setPartitionKey((String) appProps.get("x-partition-key"));
-            String timeStr = (String) appProps.get("x-time");
+            record.setBusinessKey((String) appProps.get("x-business-key"));
+            String timeStr = (String) appProps.get("x-event-time");
             if (timeStr != null) {
-                record.setTime(TimeUtils.parseRfc3339(timeStr));
+                record.setEventTime(TimeUtils.parseRfc3339(timeStr));
             }
             Map<String, String> headers = new HashMap<>();
             appProps.forEach((k, v) -> {
@@ -177,6 +178,7 @@ public class RabbitStreamConsumer implements StreamConsumer {
     }
 
     private record QueuedItem(Context ctx, Message msg) {
+
     }
 
 }

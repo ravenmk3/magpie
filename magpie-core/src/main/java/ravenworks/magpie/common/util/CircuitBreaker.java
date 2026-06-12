@@ -3,6 +3,7 @@ package ravenworks.magpie.common.util;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+
 /**
  * @author Raven
  */
@@ -10,7 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 public class CircuitBreaker {
 
     @Getter
-    public enum State { CLOSED, OPEN, HALF_OPEN }
+    public enum State {CLOSED, OPEN, HALF_OPEN}
+
 
     private final String name;
     private final int failureThreshold;

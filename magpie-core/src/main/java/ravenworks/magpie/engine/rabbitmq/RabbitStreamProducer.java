@@ -39,7 +39,7 @@ public class RabbitStreamProducer implements StreamProducer {
 
     @Override
     public CompletableFuture<SendResult> send(@NonNull MessageRecord record) {
-        int partition = PartitionUtils.partition(record.getPartitionKey(), this.producers.size());
+        int partition = PartitionUtils.partition(record.getBusinessKey(), this.producers.size());
         Producer producer = this.producers.get(partition);
         CompletableFuture<SendResult> future = new CompletableFuture<>();
         var message = buildMessage(producer, record);
@@ -65,10 +65,10 @@ public class RabbitStreamProducer implements StreamProducer {
                 .messageId(record.getId())
                 .messageBuilder()
                 .applicationProperties()
-                .entry("x-partition-key", record.getPartitionKey())
+                .entry("x-business-key", record.getBusinessKey())
                 .entry("x-tenant-id", record.getTenantId())
                 .entry("x-type", record.getType())
-                .entry("x-time", TimeUtils.formatRfc3339(record.getTime()));
+                .entry("x-event-time", TimeUtils.formatRfc3339(record.getEventTime()));
         if (record.getHeaders() != null) {
             record.getHeaders().forEach(appProps::entry);
         }

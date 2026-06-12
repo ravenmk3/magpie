@@ -17,9 +17,10 @@ public class PartitionUtils {
         if (key.isEmpty()) {
             return 0;
         }
-        return Math.abs(Hashing.murmur3_32_fixed()
+        int hash = Hashing.murmur3_32_fixed()
                 .hashString(key, StandardCharsets.UTF_8)
-                .asInt()) % partitions;
+                .asInt();
+        return (hash & Integer.MAX_VALUE) % partitions;
     }
 
 }

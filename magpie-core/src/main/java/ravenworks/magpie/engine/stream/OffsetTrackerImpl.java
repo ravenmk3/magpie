@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ravenworks.magpie.domain.entity.ConsumerOffsetEntity;
 import ravenworks.magpie.domain.repository.ConsumerOffsetRepository;
 
+
 public class OffsetTrackerImpl implements OffsetTracker {
 
     private final ConsumerOffsetRepository repository;

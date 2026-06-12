@@ -18,10 +18,10 @@ public class ConsumerRecord implements Serializable {
     private long offset;
     private String id;
     private String type;
-    private LocalDateTime time;
-    private String tenantId;
+    private LocalDateTime eventTime;
     private String topic;
-    private String partitionKey;
+    private String tenantId;
+    private String businessKey;
     private Map<String, String> headers;
     private byte[] payload;
 

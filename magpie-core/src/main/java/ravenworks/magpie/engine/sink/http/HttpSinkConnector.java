@@ -8,11 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.common.runtime.EventLoop;
 import ravenworks.magpie.common.util.CircuitBreaker;
 import ravenworks.magpie.engine.sink.SinkConnector;
-import ravenworks.magpie.engine.stream.ConsumerRecord;
-import ravenworks.magpie.engine.stream.StreamConsumer;
-import ravenworks.magpie.engine.stream.StreamDefinition;
-import ravenworks.magpie.engine.stream.StreamProvider;
-import ravenworks.magpie.engine.stream.StreamRegistry;
+import ravenworks.magpie.engine.stream.*;
 
 import java.io.IOException;
 import java.net.URI;
@@ -21,15 +17,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
+
 
 /**
  * @author Raven
@@ -172,8 +165,8 @@ public class HttpSinkConnector implements SinkConnector {
         ce.put("id", record.getId());
         ce.put("source", "");
         ce.put("type", record.getType());
-        if (record.getTime() != null) {
-            ce.put("time", record.getTime().toString());
+        if (record.getEventTime() != null) {
+            ce.put("time", record.getEventTime().toString());
         }
         ce.put("subject", record.getTopic());
         ce.put("datacontenttype", "application/json");
@@ -214,6 +207,7 @@ public class HttpSinkConnector implements SinkConnector {
     }
 
     private static class HttpConfig {
+
         final String url;
         final int timeout;
         final String backoff;
@@ -238,7 +232,9 @@ public class HttpSinkConnector implements SinkConnector {
             this.circuitBreakerHalfOpenSuccessCount = circuitBreakerHalfOpenSuccessCount;
             this.circuitBreakerResetMs = circuitBreakerResetMs;
         }
+
     }
+
 
     private static class HttpSinkWorker {
 
@@ -384,6 +380,7 @@ public class HttpSinkConnector implements SinkConnector {
             }
             return false;
         }
+
     }
 
 }

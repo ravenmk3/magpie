@@ -13,11 +13,7 @@ import ravenworks.magpie.engine.stream.StreamProducer;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -40,7 +36,9 @@ public class MySqlPollSourceConnector implements SourceConnector {
     private static final String STRATEGY_SPEED = "speed";
     private static final String STRATEGY_ORDERED = "ordered";
 
-    private enum SendStrategy { SPEED, ORDERED }
+
+    private enum SendStrategy {SPEED, ORDERED}
+
 
     private final String name;
     private final StreamProducer producer;
@@ -140,7 +138,7 @@ public class MySqlPollSourceConnector implements SourceConnector {
 
     private List<OutboxRecord> queryBatch() {
         List<OutboxRecord> records = new ArrayList<>();
-        String sql = "SELECT id, type, time, tenant_id, topic, partition_key, headers, payload FROM " + this.tableName + " ORDER BY id ASC, time ASC LIMIT ?";
+        String sql = "SELECT id, type, event_time, topic, tenant_id, business_key, headers, payload FROM " + this.tableName + " ORDER BY id ASC, event_time ASC LIMIT ?";
         try (PreparedStatement ps = this.connection.prepareStatement(sql)) {
             ps.setInt(1, this.batchSize);
             try (ResultSet rs = ps.executeQuery()) {
@@ -148,11 +146,11 @@ public class MySqlPollSourceConnector implements SourceConnector {
                     var record = new OutboxRecord();
                     record.id = rs.getString("id");
                     record.type = rs.getString("type");
-                    Timestamp ts = rs.getTimestamp("time");
-                    record.time = ts != null ? ts.toLocalDateTime() : null;
-                    record.tenantId = rs.getString("tenant_id");
+                    Timestamp ts = rs.getTimestamp("event_time");
+                    record.eventTime = ts != null ? ts.toLocalDateTime() : null;
                     record.topic = rs.getString("topic");
-                    record.partitionKey = rs.getString("partition_key");
+                    record.tenantId = rs.getString("tenant_id");
+                    record.businessKey = rs.getString("business_key");
                     String headersJson = rs.getString("headers");
                     record.headers = JsonUtils.decode(headersJson, HEADERS_TYPE);
                     record.payload = rs.getString("payload");
@@ -180,8 +178,8 @@ public class MySqlPollSourceConnector implements SourceConnector {
         Set<String> seenKeys = new HashSet<>();
 
         for (var r : records) {
-            String key = r.partitionKey != null && !r.partitionKey.isEmpty()
-                    ? r.partitionKey
+            String key = r.businessKey != null && !r.businessKey.isEmpty()
+                    ? r.businessKey
                     : r.id;
             if (seenKeys.contains(key)) {
                 flushSubBatch(currentBatch, allFutures);
@@ -221,10 +219,10 @@ public class MySqlPollSourceConnector implements SourceConnector {
         return new MessageRecord()
                 .setId(r.id)
                 .setType(r.type)
-                .setTime(r.time)
-                .setTenantId(r.tenantId)
+                .setEventTime(r.eventTime)
                 .setTopic(r.topic)
-                .setPartitionKey(r.partitionKey)
+                .setTenantId(r.tenantId)
+                .setBusinessKey(r.businessKey)
                 .setHeaders(r.headers)
                 .setPayload(r.payload != null ? r.payload.getBytes(StandardCharsets.UTF_8) : new byte[0]);
     }
@@ -306,10 +304,10 @@ public class MySqlPollSourceConnector implements SourceConnector {
 
         String id;
         String type;
-        LocalDateTime time;
-        String tenantId;
+        LocalDateTime eventTime;
         String topic;
-        String partitionKey;
+        String tenantId;
+        String businessKey;
         Map<String, String> headers;
         String payload;
 

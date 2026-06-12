@@ -72,10 +72,10 @@ public class SampleSourceConnector implements SourceConnector {
             var msg = new MessageRecord()
                     .setId(Uuids.uuid7Hex())
                     .setType("sample")
-                    .setTime(LocalDateTime.now())
+                    .setEventTime(LocalDateTime.now())
                     .setTenantId("sample")
                     .setTopic(this.topic)
-                    .setPartitionKey(Uuids.uuid7Hex())
+                    .setBusinessKey(Uuids.uuid7Hex())
                     .setPayload(("Sample message at " + Instant.now()).getBytes(StandardCharsets.UTF_8));
             this.producer.send(msg);
         }
