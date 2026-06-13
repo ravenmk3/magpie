@@ -60,10 +60,11 @@ public class EngineConfiguration {
 
     @Bean
     public static SinkFactory sinkFactory(@NonNull List<SinkProvider> providers,
-                                          @NonNull StreamRegistry streamRegistry) {
+                                          @NonNull StreamRegistry streamRegistry,
+                                          @NonNull RetryMessageStore retryMessageStore) {
         var merged = new ArrayList<>(providers);
         merged.add(new PrintSinkProvider(streamRegistry));
-        merged.add(new HttpSinkProvider(streamRegistry));
+        merged.add(new HttpSinkProvider(streamRegistry, retryMessageStore));
         return new SinkFactoryImpl(merged);
     }
 

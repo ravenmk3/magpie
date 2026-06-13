@@ -11,11 +11,14 @@ import ravenworks.magpie.domain.repository.MessageLogRepository;
 import ravenworks.magpie.domain.repository.RetryMessageRepository;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 public class RetryMessageStoreImpl implements RetryMessageStore {
@@ -47,8 +50,8 @@ public class RetryMessageStoreImpl implements RetryMessageStore {
         return toRetryRecords(entities);
     }
 
-    @Transactional
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void save(String consumer, ConsumerRecord record) {
         var logEntity = new MessageLogEntity();
         logEntity.setId(Uuids.uuid7Hex());
@@ -74,14 +77,14 @@ public class RetryMessageStoreImpl implements RetryMessageStore {
         log.info("[{}] saved retry message, id={}, businessKey={}", consumer, retryEntity.getId(), record.getBusinessKey());
     }
 
-    @Transactional
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void succeeded(String id) {
         this.retryMessageRepository.deleteById(id);
     }
 
-    @Transactional
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void failed(String id, LocalDateTime retryAt) {
         var entity = this.retryMessageRepository.findById(id).orElse(null);
         if (entity == null) {

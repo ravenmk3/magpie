@@ -6,6 +6,5 @@ public enum OrderingGuarantee {
 
     KEY_ORDERED,
 
-    NO_GUARANTEE
-
+    BEST_EFFORT
 }

@@ -1,6 +1,7 @@
 package ravenworks.magpie.engine.sink.http;
 
 import lombok.NonNull;
+import ravenworks.magpie.engine.retry.RetryMessageStore;
 import ravenworks.magpie.engine.sink.SinkConnector;
 import ravenworks.magpie.engine.sink.SinkProvider;
 import ravenworks.magpie.engine.sink.TargetDefinition;
@@ -14,9 +15,12 @@ import ravenworks.magpie.engine.stream.StreamRegistry;
 public class HttpSinkProvider implements SinkProvider {
 
     private final StreamRegistry streamRegistry;
+    private final RetryMessageStore retryStore;
 
-    public HttpSinkProvider(@NonNull StreamRegistry streamRegistry) {
+    public HttpSinkProvider(@NonNull StreamRegistry streamRegistry,
+                            @NonNull RetryMessageStore retryStore) {
         this.streamRegistry = streamRegistry;
+        this.retryStore = retryStore;
     }
 
     @Override
@@ -27,7 +31,7 @@ public class HttpSinkProvider implements SinkProvider {
     @Override
     public SinkConnector create(@NonNull StreamProvider provider,
                                 @NonNull TargetDefinition definition) {
-        return new HttpSinkConnector(provider, this.streamRegistry,
+        return new HttpSinkConnector(provider, this.streamRegistry, this.retryStore,
                 definition.getName(), definition.getTopic(), definition.getProperties());
     }
 

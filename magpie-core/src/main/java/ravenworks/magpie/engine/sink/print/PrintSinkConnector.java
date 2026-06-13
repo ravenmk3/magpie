@@ -73,7 +73,6 @@ public class PrintSinkConnector implements SinkConnector {
 
     private static class PrintSinkWorker {
 
-        private static final int BUFFER_SIZE = 1000;
         private static final int BATCH_SIZE = 500;
         private static final Object POLL_SIGNAL = new Object();
 
@@ -92,7 +91,7 @@ public class PrintSinkConnector implements SinkConnector {
         }
 
         void start() {
-            this.consumer.consume(BUFFER_SIZE);
+            this.consumer.start();
             this.eventLoop.start();
         }
 
@@ -108,9 +107,9 @@ public class PrintSinkConnector implements SinkConnector {
             }
             if (event instanceof EventLoop.PreShutdown) {
                 try {
-                    this.consumer.close();
+                    this.consumer.stop();
                 } catch (Exception e) {
-                    log.warn("[{}] partition={} error closing consumer", this.name, this.partition, e);
+                    log.warn("[{}] partition={} error stopping consumer", this.name, this.partition, e);
                 }
                 return;
             }

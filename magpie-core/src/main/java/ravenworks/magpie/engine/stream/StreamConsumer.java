@@ -7,11 +7,13 @@ import java.util.List;
 /**
  * @author Raven
  */
-public interface StreamConsumer extends AutoCloseable {
+public interface StreamConsumer {
 
     int partition();
 
-    void consume(int bufferSize);
+    void start();
+
+    void stop();
 
     List<ConsumerRecord> poll(int count, Duration timeout);
 

@@ -1,28 +1,16 @@
 package ravenworks.magpie.engine.sink.http;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import ravenworks.magpie.common.runtime.EventLoop;
-import ravenworks.magpie.common.util.CircuitBreaker;
+import ravenworks.magpie.engine.retry.RetryMessageStore;
+import ravenworks.magpie.engine.sink.OrderingGuarantee;
 import ravenworks.magpie.engine.sink.SinkConnector;
-import ravenworks.magpie.engine.stream.*;
+import ravenworks.magpie.engine.stream.StreamConsumer;
+import ravenworks.magpie.engine.stream.StreamDefinition;
+import ravenworks.magpie.engine.stream.StreamProvider;
+import ravenworks.magpie.engine.stream.StreamRegistry;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.LockSupport;
-
 
 /**
  * @author Raven
@@ -30,48 +18,50 @@ import java.util.concurrent.locks.LockSupport;
 @Slf4j
 public class HttpSinkConnector implements SinkConnector {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+    static final String PROP_URL = "url";
+    static final String PROP_TIMEOUT = "timeout";
+    static final String PROP_RETRY_BACKOFF = "retry.backoff";
+    static final String PROP_RETRY_DELAY = "retry.delay";
+    static final String PROP_RETRY_MAX_DELAY = "retry.maxDelay";
+    static final String PROP_RETRY_STATUS_CODES = "retry.statusCodes";
+    static final String PROP_RETRY_INPLACE_ATTEMPTS = "retry.inplaceAttempts";
+    static final String PROP_RETRY_EMPTY_POLL_THRESHOLD = "retry.emptyPollThreshold";
 
-    private static final String PROP_URL = "url";
-    private static final String PROP_TIMEOUT = "timeout";
-    private static final String PROP_RETRY_BACKOFF = "retry.backoff";
-    private static final String PROP_RETRY_DELAY = "retry.delay";
-    private static final String PROP_RETRY_MAX_DELAY = "retry.maxDelay";
-    private static final String PROP_RETRY_STATUS_CODES = "retry.statusCodes";
+    static final String PROP_CIRCUIT_BREAKER_FAILURE_THRESHOLD = "circuitBreaker.failureThreshold";
+    static final String PROP_CIRCUIT_BREAKER_HALF_OPEN_SUCCESSES = "circuitBreaker.halfOpenSuccessCount";
+    static final String PROP_CIRCUIT_BREAKER_RESET_MS = "circuitBreaker.resetMs";
 
-    private static final String PROP_CIRCUIT_BREAKER_FAILURE_THRESHOLD = "circuitBreaker.failureThreshold";
-    private static final String PROP_CIRCUIT_BREAKER_HALF_OPEN_SUCCESSES = "circuitBreaker.halfOpenSuccessCount";
-    private static final String PROP_CIRCUIT_BREAKER_RESET_MS = "circuitBreaker.resetMs";
+    static final String PROP_ORDERING_GUARANTEE = "orderingGuarantee";
 
-    private static final String DEFAULT_TIMEOUT = "10000";
-    private static final String DEFAULT_BACKOFF = "fixed";
-    private static final String DEFAULT_DELAY = "1000";
-    private static final String DEFAULT_MAX_DELAY = "30000";
-    private static final String DEFAULT_STATUS_CODES = "500-599,408,429";
-    private static final String DEFAULT_FAILURE_THRESHOLD = "20";
-    private static final String DEFAULT_HALF_OPEN_SUCCESSES = "10";
-    private static final String DEFAULT_RESET_MS = "600000";
-
-    private static final Set<String> RESERVED_CE_KEYS = Set.of(
-            "specversion", "id", "source", "type", "time",
-            "subject", "datacontenttype", "data", "headers"
-    );
+    static final String DEFAULT_TIMEOUT = "10000";
+    static final String DEFAULT_BACKOFF = "fixed";
+    static final String DEFAULT_DELAY = "1000";
+    static final String DEFAULT_MAX_DELAY = "30000";
+    static final String DEFAULT_STATUS_CODES = "500-599,408,429";
+    static final String DEFAULT_INPLACE_ATTEMPTS = "3";
+    static final String DEFAULT_EMPTY_POLL_THRESHOLD = "3";
+    static final String DEFAULT_FAILURE_THRESHOLD = "20";
+    static final String DEFAULT_HALF_OPEN_SUCCESSES = "10";
+    static final String DEFAULT_RESET_MS = "600000";
+    static final String DEFAULT_ORDERING_GUARANTEE = "ORDERED";
 
     private final StreamProvider provider;
     private final StreamRegistry streamRegistry;
+    private final RetryMessageStore retryStore;
     private final String name;
     private final String topic;
     private final HttpConfig config;
-    private final List<HttpSinkWorker> workers = new ArrayList<>();
+    private final List<AbstractHttpSinkWorker> workers = new ArrayList<>();
 
     public HttpSinkConnector(@NonNull StreamProvider provider,
                              @NonNull StreamRegistry streamRegistry,
+                             @NonNull RetryMessageStore retryStore,
                              @NonNull String name,
                              @NonNull String topic,
                              Map<String, Object> properties) {
         this.provider = provider;
         this.streamRegistry = streamRegistry;
+        this.retryStore = retryStore;
         this.name = name;
         this.topic = topic;
         this.config = parseConfig(properties);
@@ -95,24 +85,34 @@ public class HttpSinkConnector implements SinkConnector {
             return;
         }
         var consumers = this.provider.consumer(definition, this.name);
-        for (int i = 0; i < consumers.size(); i++) {
-            var worker = new HttpSinkWorker(this.name, i, consumers.get(i), this.config);
+        for (StreamConsumer consumer : consumers) {
+            var worker = createWorker(this.name, consumer);
             this.workers.add(worker);
             worker.start();
         }
-        log.info("HTTP sink '{}' started, {} worker(s), url={}", this.name, this.workers.size(), this.config.url);
+        log.info("HTTP sink '{}' started, {} worker(s), url={}, ordering={}",
+                this.name, this.workers.size(), this.config.url, this.config.orderingGuarantee);
     }
 
     @Override
-    public CompletableFuture<Void> shutdown() {
+    public java.util.concurrent.CompletableFuture<Void> shutdown() {
         var futures = this.workers.stream()
-                .map(HttpSinkWorker::shutdown)
-                .toArray(CompletableFuture[]::new);
-        return CompletableFuture.allOf(futures)
+                .map(AbstractHttpSinkWorker::shutdown)
+                .toArray(java.util.concurrent.CompletableFuture[]::new);
+        return java.util.concurrent.CompletableFuture.allOf(futures)
                 .thenRun(() -> log.info("HTTP sink '{}' shutdown", this.name));
     }
 
-    private static HttpConfig parseConfig(Map<String, Object> props) {
+    private AbstractHttpSinkWorker createWorker(String name, StreamConsumer consumer) {
+        var workerName = name + "-" + consumer.partition();
+        return switch (this.config.orderingGuarantee) {
+            case ORDERED -> new OrderedHttpSinkWorker(workerName, consumer.partition(), consumer, this.config);
+            case KEY_ORDERED -> new KeyOrderedHttpSinkWorker(workerName, consumer.partition(), consumer, this.retryStore, this.config);
+            case BEST_EFFORT -> new BestEffortHttpSinkWorker(workerName, consumer.partition(), consumer, this.retryStore, this.config);
+        };
+    }
+
+    static HttpConfig parseConfig(Map<String, Object> props) {
         if (props == null) {
             throw new IllegalArgumentException("HttpSinkConnector requires 'url' property");
         }
@@ -126,11 +126,16 @@ public class HttpSinkConnector implements SinkConnector {
         long maxDelay = Long.parseLong(getString(props, PROP_RETRY_MAX_DELAY, DEFAULT_MAX_DELAY));
         String statusCodesStr = getString(props, PROP_RETRY_STATUS_CODES, DEFAULT_STATUS_CODES);
         Set<Integer> retryStatusCodes = parseStatusCodes(statusCodesStr);
+        int inplaceAttempts = Integer.parseInt(getString(props, PROP_RETRY_INPLACE_ATTEMPTS, DEFAULT_INPLACE_ATTEMPTS));
+        int emptyPollThreshold = Integer.parseInt(getString(props, PROP_RETRY_EMPTY_POLL_THRESHOLD, DEFAULT_EMPTY_POLL_THRESHOLD));
         int failureThreshold = Integer.parseInt(getString(props, PROP_CIRCUIT_BREAKER_FAILURE_THRESHOLD, DEFAULT_FAILURE_THRESHOLD));
         int halfOpenSuccesses = Integer.parseInt(getString(props, PROP_CIRCUIT_BREAKER_HALF_OPEN_SUCCESSES, DEFAULT_HALF_OPEN_SUCCESSES));
         long resetMs = Long.parseLong(getString(props, PROP_CIRCUIT_BREAKER_RESET_MS, DEFAULT_RESET_MS));
+        String orderingGuaranteeStr = getString(props, PROP_ORDERING_GUARANTEE, DEFAULT_ORDERING_GUARANTEE);
+        OrderingGuarantee orderingGuarantee = parseOrderingGuarantee(orderingGuaranteeStr);
         return new HttpConfig(url, timeout, backoff, delay, maxDelay, retryStatusCodes,
-                failureThreshold, halfOpenSuccesses, resetMs);
+                failureThreshold, halfOpenSuccesses, resetMs,
+                inplaceAttempts, emptyPollThreshold, orderingGuarantee);
     }
 
     private static String getString(Map<String, Object> props, String key, String defaultValue) {
@@ -141,8 +146,8 @@ public class HttpSinkConnector implements SinkConnector {
         return val.toString();
     }
 
-    private static Set<Integer> parseStatusCodes(String str) {
-        Set<Integer> codes = new java.util.HashSet<>();
+    static Set<Integer> parseStatusCodes(String str) {
+        Set<Integer> codes = new HashSet<>();
         for (String part : str.split(",")) {
             part = part.trim();
             if (part.contains("-")) {
@@ -159,54 +164,19 @@ public class HttpSinkConnector implements SinkConnector {
         return codes;
     }
 
-    private static String buildCloudEventJson(ConsumerRecord record) {
-        Map<String, Object> ce = new LinkedHashMap<>();
-        ce.put("specversion", "1.0");
-        ce.put("id", record.getId());
-        ce.put("source", "");
-        ce.put("type", record.getType());
-        if (record.getEventTime() != null) {
-            ce.put("time", record.getEventTime().toString());
+    private static OrderingGuarantee parseOrderingGuarantee(String value) {
+        if (value == null || value.isBlank()) {
+            return OrderingGuarantee.ORDERED;
         }
-        ce.put("subject", record.getTopic());
-        ce.put("datacontenttype", "application/json");
-
-        String payloadStr = record.getPayload() != null
-                ? new String(record.getPayload(), StandardCharsets.UTF_8)
-                : "";
-        ce.put("data", payloadStr);
-
-        Map<String, String> extHeaders = new LinkedHashMap<>();
-        if (record.getHeaders() != null) {
-            for (var entry : record.getHeaders().entrySet()) {
-                if (!RESERVED_CE_KEYS.contains(entry.getKey().toLowerCase())) {
-                    extHeaders.put(entry.getKey(), entry.getValue());
-                }
+        for (var v : OrderingGuarantee.values()) {
+            if (v.name().equalsIgnoreCase(value)) {
+                return v;
             }
         }
-        ce.put("headers", extHeaders);
-
-        try {
-            return OBJECT_MAPPER.writeValueAsString(ce);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize CloudEvent", e);
-            return "{}";
-        }
+        return OrderingGuarantee.ORDERED;
     }
 
-    private static long computeBackoffDelay(String backoff, long delay, long maxDelay, int attempt) {
-        if ("exponential".equalsIgnoreCase(backoff)) {
-            long computed = delay * (1L << (attempt - 1));
-            return Math.min(computed, maxDelay);
-        }
-        return delay;
-    }
-
-    private static boolean isRetryable(int statusCode, Set<Integer> retryStatusCodes) {
-        return retryStatusCodes.contains(statusCode);
-    }
-
-    private static class HttpConfig {
+    static class HttpConfig {
 
         final String url;
         final int timeout;
@@ -217,11 +187,16 @@ public class HttpSinkConnector implements SinkConnector {
         final int circuitBreakerFailureThreshold;
         final int circuitBreakerHalfOpenSuccessCount;
         final long circuitBreakerResetMs;
+        final int retryInplaceAttempts;
+        final int emptyPollThreshold;
+        final OrderingGuarantee orderingGuarantee;
 
         HttpConfig(String url, int timeout, String backoff,
                    long delay, long maxDelay, Set<Integer> retryStatusCodes,
                    int circuitBreakerFailureThreshold, int circuitBreakerHalfOpenSuccessCount,
-                   long circuitBreakerResetMs) {
+                   long circuitBreakerResetMs,
+                   int retryInplaceAttempts, int emptyPollThreshold,
+                   OrderingGuarantee orderingGuarantee) {
             this.url = url;
             this.timeout = timeout;
             this.backoff = backoff;
@@ -231,154 +206,9 @@ public class HttpSinkConnector implements SinkConnector {
             this.circuitBreakerFailureThreshold = circuitBreakerFailureThreshold;
             this.circuitBreakerHalfOpenSuccessCount = circuitBreakerHalfOpenSuccessCount;
             this.circuitBreakerResetMs = circuitBreakerResetMs;
-        }
-
-    }
-
-
-    private static class HttpSinkWorker {
-
-        private static final int BUFFER_SIZE = 200;
-        private static final int BATCH_SIZE = 100;
-        private static final Object POLL_SIGNAL = new Object();
-
-        private final String name;
-        private final int partition;
-        private final StreamConsumer consumer;
-        private final HttpConfig config;
-        private final EventLoop eventLoop;
-        private final AtomicLong received = new AtomicLong();
-        private final HttpClient httpClient;
-        private final CircuitBreaker circuitBreaker;
-        private volatile Thread eventLoopThread;
-        private volatile boolean stopped;
-
-        HttpSinkWorker(String name, int partition, StreamConsumer consumer, HttpConfig config) {
-            this.name = name;
-            this.partition = partition;
-            this.consumer = consumer;
-            this.config = config;
-            this.eventLoop = new EventLoop("snk-" + name + "-" + partition, 5_000, this::dispatch);
-            this.httpClient = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofMillis(config.timeout))
-                    .build();
-            this.circuitBreaker = new CircuitBreaker(name + "-" + partition,
-                    config.circuitBreakerFailureThreshold,
-                    config.circuitBreakerHalfOpenSuccessCount,
-                    config.circuitBreakerResetMs);
-        }
-
-        void start() {
-            this.consumer.consume(BUFFER_SIZE);
-            this.eventLoop.start();
-        }
-
-        CompletableFuture<Void> shutdown() {
-            this.stopped = true;
-            Thread t = this.eventLoopThread;
-            if (t != null) {
-                LockSupport.unpark(t);
-            }
-            return this.eventLoop.shutdown();
-        }
-
-        private void dispatch(Object event) {
-            if (event instanceof EventLoop.Started) {
-                this.eventLoopThread = Thread.currentThread();
-                this.eventLoop.enqueue(POLL_SIGNAL);
-                return;
-            }
-            if (event instanceof EventLoop.PreShutdown) {
-                try {
-                    this.consumer.close();
-                } catch (Exception e) {
-                    log.warn("[{}] partition={} error closing consumer", this.name, this.partition, e);
-                }
-                return;
-            }
-            if (this.stopped) {
-                return;
-            }
-            if (event instanceof EventLoop.Idle || event == POLL_SIGNAL) {
-                pollAndProcess();
-            }
-        }
-
-        private void pollAndProcess() {
-            if (this.circuitBreaker.isOpen()) {
-                return;
-            }
-            var batch = this.consumer.poll(BATCH_SIZE, Duration.ofMillis(50));
-            long completedOffset = processBatch(batch);
-            if (!batch.isEmpty() && completedOffset >= 0) {
-                this.consumer.commit(completedOffset + 1);
-            }
-            this.eventLoop.enqueue(POLL_SIGNAL);
-        }
-
-        private long processBatch(List<ConsumerRecord> batch) {
-            long lastCompletedOffset = -1;
-            for (var record : batch) {
-                if (!deliverWithRetry(record)) {
-                    return lastCompletedOffset;
-                }
-                lastCompletedOffset = record.getOffset();
-            }
-            return lastCompletedOffset;
-        }
-
-        private boolean deliverWithRetry(ConsumerRecord record) {
-            long count = this.received.incrementAndGet();
-            String json = buildCloudEventJson(record);
-            int attempt = 0;
-            while (!this.stopped) {
-                if (this.circuitBreaker.isOpen()) {
-                    LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-                    continue;
-                }
-                attempt++;
-                try {
-                    var request = HttpRequest.newBuilder()
-                            .uri(URI.create(this.config.url))
-                            .timeout(Duration.ofMillis(this.config.timeout))
-                            .header("Content-Type", "application/cloudevents+json")
-                            .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
-                            .build();
-
-                    var response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        log.debug("[{}] partition={} offset={} count={} delivered, status={}",
-                                this.name, this.partition, record.getOffset(), count, response.statusCode());
-                        this.circuitBreaker.recordSuccess();
-                        return true;
-                    }
-
-                    long backoffDelay = computeBackoffDelay(this.config.backoff, this.config.delay,
-                            this.config.maxDelay, attempt);
-                    log.warn("[{}] partition={} offset={} count={} HTTP {} (attempt {}), retry in {}ms",
-                            this.name, this.partition, record.getOffset(), count,
-                            response.statusCode(), attempt, backoffDelay);
-                    this.circuitBreaker.recordFailure();
-                    LockSupport.parkNanos(backoffDelay * 1_000_000L);
-
-                } catch (IOException e) {
-                    long backoffDelay = computeBackoffDelay(this.config.backoff, this.config.delay,
-                            this.config.maxDelay, attempt);
-                    log.warn("[{}] partition={} offset={} count={} IO error (attempt {}), retry in {}ms: {}",
-                            this.name, this.partition, record.getOffset(), count,
-                            attempt, backoffDelay, e.getMessage());
-                    this.circuitBreaker.recordFailure();
-                    LockSupport.parkNanos(backoffDelay * 1_000_000L);
-
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    log.warn("[{}] partition={} offset={} count={} interrupted",
-                            this.name, this.partition, record.getOffset(), count);
-                    return false;
-                }
-            }
-            return false;
+            this.retryInplaceAttempts = retryInplaceAttempts;
+            this.emptyPollThreshold = emptyPollThreshold;
+            this.orderingGuarantee = orderingGuarantee;
         }
 
     }

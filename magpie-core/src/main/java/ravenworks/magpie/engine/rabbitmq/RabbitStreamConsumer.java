@@ -56,19 +56,19 @@ public class RabbitStreamConsumer implements StreamConsumer {
     }
 
     @Override
-    public void consume(int bufferSize) {
+    public void start() {
         if (!this.consuming.compareAndSet(false, true)) {
-            throw new IllegalStateException("Already consuming");
+            throw new IllegalStateException("Already started");
         }
-        this.queue = new LinkedBlockingQueue<>(bufferSize * 2);
+        this.queue = new LinkedBlockingQueue<>();
 
         String streamName = RabbitUtils.streamQueueName(this.definition.name(), this.partition);
         this.rmqConsumer = this.environment.consumerBuilder()
                 .stream(streamName)
                 .name("magpie-" + this.name + "-" + this.partition)
                 .flow()
-                .initialCredits(bufferSize)
-                .strategy(ConsumerFlowStrategy.creditOnProcessedMessageCount(bufferSize, 0.5))
+                .initialCredits(10)
+                .strategy(ConsumerFlowStrategy.creditOnProcessedMessageCount(10, 0.5))
                 .builder()
                 .subscriptionListener(ctx -> {
                     long offset = this.offsetTracker.read(this.name, this.partition);
@@ -81,11 +81,12 @@ public class RabbitStreamConsumer implements StreamConsumer {
                     try {
                         this.queue.put(new QueuedItem(ctx, msg));
                     } catch (InterruptedException e) {
+                        log.info("[{}] partition={} thread interrupted", this.name, this.partition);
                         Thread.currentThread().interrupt();
                     }
                 })
                 .build();
-        log.info("[{}] partition={} consumer started, bufferSize={}", this.name, this.partition, bufferSize);
+        log.info("[{}] partition={} consumer started", this.name, this.partition);
     }
 
     @Override
@@ -128,11 +129,16 @@ public class RabbitStreamConsumer implements StreamConsumer {
     }
 
     @Override
-    public void close() {
+    public void stop() {
         if (this.rmqConsumer != null) {
             this.rmqConsumer.close();
             this.rmqConsumer = null;
         }
+        if (this.queue != null) {
+            this.queue.clear();
+            this.queue = null;
+        }
+        this.consuming.set(false);
     }
 
     private static OffsetSpecification resolveOffset(long offset) {
