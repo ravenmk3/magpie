@@ -7,6 +7,7 @@ import ravenworks.magpie.common.json.JsonUtils;
 
 import java.util.Map;
 
+
 @Converter
 public class StringMapConverter implements AttributeConverter<Map<String, String>, String> {
 

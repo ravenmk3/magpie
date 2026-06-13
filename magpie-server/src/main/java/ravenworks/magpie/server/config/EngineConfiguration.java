@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import ravenworks.magpie.domain.repository.*;
 import ravenworks.magpie.engine.lock.LeaderLock;
 import ravenworks.magpie.engine.lock.LeaderLockImpl;
+import ravenworks.magpie.engine.retry.RetryMessageStore;
+import ravenworks.magpie.engine.retry.RetryMessageStoreImpl;
 import ravenworks.magpie.engine.runtime.Coordinator;
 import ravenworks.magpie.engine.sink.*;
 import ravenworks.magpie.engine.sink.http.HttpSinkProvider;
@@ -14,8 +16,6 @@ import ravenworks.magpie.engine.sink.print.PrintSinkProvider;
 import ravenworks.magpie.engine.source.*;
 import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
 import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
-import ravenworks.magpie.engine.retry.RetryMessageStore;
-import ravenworks.magpie.engine.retry.RetryMessageStoreImpl;
 import ravenworks.magpie.engine.stream.*;
 
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ public class EngineConfiguration {
 
     @Bean
     public static RetryMessageStore retryMessageStore(@NonNull MessageLogRepository messageLogRepository,
-                                                       @NonNull RetryMessageRepository retryMessageRepository) {
+                                                      @NonNull RetryMessageRepository retryMessageRepository) {
         return new RetryMessageStoreImpl(messageLogRepository, retryMessageRepository);
     }
 

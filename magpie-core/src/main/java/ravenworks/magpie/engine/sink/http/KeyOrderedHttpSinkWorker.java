@@ -2,18 +2,20 @@ package ravenworks.magpie.engine.sink.http;
 
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.engine.retry.RetryMessageStore;
+import ravenworks.magpie.engine.sink.http.HttpSinkConnector.HttpConfig;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
 import ravenworks.magpie.engine.stream.StreamConsumer;
-import ravenworks.magpie.engine.sink.http.HttpSinkConnector.HttpConfig;
 
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 
+
 @Slf4j
 class KeyOrderedHttpSinkWorker extends AbstractHttpSinkWorker {
 
-    private enum State { NORMAL, RETRYING }
+    private enum State {NORMAL, RETRYING}
+
 
     private final RetryMessageStore retryStore;
     private final Set<String> blockedKeys = new HashSet<>();
@@ -141,4 +143,5 @@ class KeyOrderedHttpSinkWorker extends AbstractHttpSinkWorker {
                 .setPayload(retryRecord.getPayload());
         return deliver(record, retryRecord.getAttempts() + 1);
     }
+
 }

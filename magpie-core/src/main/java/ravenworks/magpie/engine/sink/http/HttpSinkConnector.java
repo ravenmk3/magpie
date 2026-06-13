@@ -12,6 +12,7 @@ import ravenworks.magpie.engine.stream.StreamRegistry;
 
 import java.util.*;
 
+
 /**
  * @author Raven
  */
@@ -107,8 +108,10 @@ public class HttpSinkConnector implements SinkConnector {
         var workerName = name + "-" + consumer.partition();
         return switch (this.config.orderingGuarantee) {
             case ORDERED -> new OrderedHttpSinkWorker(workerName, consumer.partition(), consumer, this.config);
-            case KEY_ORDERED -> new KeyOrderedHttpSinkWorker(workerName, consumer.partition(), consumer, this.retryStore, this.config);
-            case BEST_EFFORT -> new BestEffortHttpSinkWorker(workerName, consumer.partition(), consumer, this.retryStore, this.config);
+            case KEY_ORDERED ->
+                    new KeyOrderedHttpSinkWorker(workerName, consumer.partition(), consumer, this.retryStore, this.config);
+            case BEST_EFFORT ->
+                    new BestEffortHttpSinkWorker(workerName, consumer.partition(), consumer, this.retryStore, this.config);
         };
     }
 

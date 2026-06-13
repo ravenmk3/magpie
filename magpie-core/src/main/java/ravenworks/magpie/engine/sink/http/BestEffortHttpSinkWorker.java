@@ -2,17 +2,19 @@ package ravenworks.magpie.engine.sink.http;
 
 import lombok.extern.slf4j.Slf4j;
 import ravenworks.magpie.engine.retry.RetryMessageStore;
+import ravenworks.magpie.engine.sink.http.HttpSinkConnector.HttpConfig;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
 import ravenworks.magpie.engine.stream.StreamConsumer;
-import ravenworks.magpie.engine.sink.http.HttpSinkConnector.HttpConfig;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+
 @Slf4j
 class BestEffortHttpSinkWorker extends AbstractHttpSinkWorker {
 
-    private enum State { NORMAL, RETRYING }
+    private enum State {NORMAL, RETRYING}
+
 
     private final RetryMessageStore retryStore;
     private final int inplaceAttempts;
@@ -126,4 +128,5 @@ class BestEffortHttpSinkWorker extends AbstractHttpSinkWorker {
         long delayMs = computeBackoffDelay(this.config.backoff, this.config.delay, this.config.maxDelay, attempts);
         return LocalDateTime.now().plusNanos(delayMs * 1_000_000);
     }
+
 }

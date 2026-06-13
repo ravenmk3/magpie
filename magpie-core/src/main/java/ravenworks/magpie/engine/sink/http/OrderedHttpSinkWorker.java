@@ -1,12 +1,12 @@
 package ravenworks.magpie.engine.sink.http;
 
+import ravenworks.magpie.engine.sink.http.HttpSinkConnector.HttpConfig;
 import ravenworks.magpie.engine.stream.ConsumerRecord;
 import ravenworks.magpie.engine.stream.StreamConsumer;
-import ravenworks.magpie.engine.sink.http.HttpSinkConnector.HttpConfig;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
+
 
 class OrderedHttpSinkWorker extends AbstractHttpSinkWorker {
 
