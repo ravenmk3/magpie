@@ -87,3 +87,44 @@ CREATE TABLE IF NOT EXISTS `magpie_consumer_offset`
     ENGINE = InnoDB
     CHARSET = utf8mb4
     COMMENT '消息偏移量';
+
+
+CREATE TABLE IF NOT EXISTS `magpie_message_log`
+(
+    `id`           CHAR(32)     NOT NULL COMMENT 'ID',
+    `message_id`   CHAR(32)     NOT NULL COMMENT '消息 ID',
+    `type`         VARCHAR(128) NOT NULL DEFAULT '' COMMENT '消息类型',
+    `event_time`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '发生时间',
+    `topic`        VARCHAR(128) NOT NULL DEFAULT '' COMMENT '消息主题',
+    `tenant_id`    VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '租户 ID',
+    `business_key` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '业务键',
+    `headers`      JSON         NOT NULL COMMENT '消息头',
+    `payload`      MEDIUMTEXT   NOT NULL COMMENT '消息体',
+    `created_at`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`),
+    INDEX `idx_message_id` (`message_id`)
+)
+    ENGINE = InnoDB
+    CHARSET = utf8mb4
+    COMMENT '消息记录';
+
+
+CREATE TABLE IF NOT EXISTS `magpie_retry_message`
+(
+    `id`           CHAR(32)     NOT NULL COMMENT 'ID',
+    `consumer`     VARCHAR(128) NOT NULL DEFAULT '' COMMENT '消费者名称',
+    `log_id`       CHAR(32)     NOT NULL COMMENT '消息记录 ID [FK|magpie_message_log.id]',
+    `attempts`     INT          NOT NULL DEFAULT 0 COMMENT '尝试次数',
+    `retry_at`     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '下次可重试时间',
+    `business_key` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '业务键',
+    `version`      INT          NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+    `created_at`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`id`),
+    INDEX `idx_consumer_retry_at` (`consumer`, `retry_at`)
+)
+    ENGINE = InnoDB
+    CHARSET = utf8mb4
+    COMMENT '待重试消息';

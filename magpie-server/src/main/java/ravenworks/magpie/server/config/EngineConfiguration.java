@@ -14,6 +14,8 @@ import ravenworks.magpie.engine.sink.print.PrintSinkProvider;
 import ravenworks.magpie.engine.source.*;
 import ravenworks.magpie.engine.source.mysql.MySqlPollSourceProvider;
 import ravenworks.magpie.engine.source.sample.SampleSourceProvider;
+import ravenworks.magpie.engine.retry.RetryMessageStore;
+import ravenworks.magpie.engine.retry.RetryMessageStoreImpl;
 import ravenworks.magpie.engine.stream.*;
 
 import java.util.ArrayList;
@@ -63,6 +65,12 @@ public class EngineConfiguration {
         merged.add(new PrintSinkProvider(streamRegistry));
         merged.add(new HttpSinkProvider(streamRegistry));
         return new SinkFactoryImpl(merged);
+    }
+
+    @Bean
+    public static RetryMessageStore retryMessageStore(@NonNull MessageLogRepository messageLogRepository,
+                                                       @NonNull RetryMessageRepository retryMessageRepository) {
+        return new RetryMessageStoreImpl(messageLogRepository, retryMessageRepository);
     }
 
     @Bean
