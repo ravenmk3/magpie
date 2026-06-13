@@ -29,6 +29,9 @@ public class SourceEntity implements Serializable {
     @Column(name = "title", nullable = false, length = 128)
     private String title;
 
+    @Column(name = "is_enabled", nullable = false, columnDefinition = "TINYINT(1)")
+    private boolean isEnabled;
+
     @Convert(converter = JsonMapConverter.class)
     @Column(name = "properties", nullable = false)
     private Map<String, Object> properties;

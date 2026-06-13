@@ -31,6 +31,7 @@ public class TargetRegistryImpl implements TargetRegistry {
         def.setName(entity.getName());
         def.setType(entity.getType());
         def.setTopic(entity.getTopic());
+        def.setEnabled(entity.isEnabled());
         def.setProperties(entity.getProperties());
         return def;
     }

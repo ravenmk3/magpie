@@ -32,6 +32,9 @@ public class TargetEntity implements Serializable {
     @Column(name = "topic", nullable = false, length = 128)
     private String topic;
 
+    @Column(name = "is_enabled", nullable = false, columnDefinition = "TINYINT(1)")
+    private boolean isEnabled;
+
     @Convert(converter = JsonMapConverter.class)
     @Column(name = "properties", nullable = false)
     private Map<String, Object> properties;

@@ -30,6 +30,7 @@ public class SourceRegistryImpl implements SourceRegistry {
         var def = new SourceDefinition();
         def.setName(entity.getName());
         def.setType(entity.getType());
+        def.setEnabled(entity.isEnabled());
         def.setProperties(entity.getProperties());
         return def;
     }

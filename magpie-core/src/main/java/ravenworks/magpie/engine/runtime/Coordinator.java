@@ -160,11 +160,15 @@ public class Coordinator {
     private void startSourceConnectors() {
         var sources = this.sourceRegistry.getSources();
         for (var definition : sources) {
+            if (!definition.isEnabled()) {
+                log.info("Source '{}' is disabled, skipping", definition.getName());
+                continue;
+            }
             var connector = this.sourceFactory.create(this.sourceProducer, definition);
             this.sourceConnectors.put(definition.getName(), connector);
             connector.start();
         }
-        log.info("Source connectors initialized, {} connector(s)", sources.size());
+        log.info("Source connectors initialized, {} connector(s)", this.sourceConnectors.size());
     }
 
     private void shutdownSourceConnectors() {
@@ -183,11 +187,15 @@ public class Coordinator {
     private void startSinkConnectors() {
         var targets = this.targetRegistry.getTargets();
         for (var definition : targets) {
+            if (!definition.isEnabled()) {
+                log.info("Target '{}' is disabled, skipping", definition.getName());
+                continue;
+            }
             var connector = this.sinkFactory.create(this.streamProvider, definition);
             this.sinkConnectors.put(definition.getName(), connector);
             connector.start();
         }
-        log.info("Sink connectors initialized, {} connector(s)", targets.size());
+        log.info("Sink connectors initialized, {} connector(s)", this.sinkConnectors.size());
     }
 
     private void shutdownSinkConnectors() {
